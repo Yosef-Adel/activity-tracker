@@ -85,6 +85,10 @@ ipcMain.handle("tracker:getActivities", (_event, startTime: number, endTime: num
   return tracker?.getDatabase().getActivitiesInRange(startTime, endTime) || [];
 });
 
+ipcMain.handle("tracker:getSessions", (_event, startTime: number, endTime: number) => {
+  return tracker?.getDatabase().getSessionsWithActivities(startTime, endTime) || [];
+});
+
 ipcMain.handle("tracker:getCategoryColor", (_event, category: string) => {
   return tracker?.getCategorizer().getCategoryColor(category as never) || "#64748B";
 });

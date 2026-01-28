@@ -55,6 +55,7 @@ export interface DailyTotal {
 
 export interface ActivityRecord {
   id: number;
+  session_id: number | null;
   app_name: string;
   window_title: string;
   url: string | null;
@@ -69,6 +70,21 @@ export interface ActivityRecord {
   duration: number;
   context_json: string | null;
   created_at: string;
+}
+
+export interface SessionRecord {
+  id: number;
+  app_name: string;
+  category: string | null;
+  start_time: number;
+  end_time: number;
+  total_duration: number;
+  activity_count: number;
+  created_at: string | null;
+}
+
+export interface SessionWithActivities extends SessionRecord {
+  activities: ActivityRecord[];
 }
 
 contextBridge.exposeInMainWorld("electronAPI", {
@@ -100,6 +116,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   getActivities: (startTime: number, endTime: number): Promise<ActivityRecord[]> =>
     ipcRenderer.invoke("tracker:getActivities", startTime, endTime),
+
+  getSessions: (startTime: number, endTime: number): Promise<SessionWithActivities[]> =>
+    ipcRenderer.invoke("tracker:getSessions", startTime, endTime),
 
   // Categories
   getCategoryColor: (category: string): Promise<string> =>

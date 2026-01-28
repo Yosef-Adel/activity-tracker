@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Card } from "../components";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
-import { fetchActivities, setDateRangeToday, setDateRangeWeek, setCurrentActivity } from "../store/slices";
+import { fetchSessions, setDateRangeToday, setDateRangeWeek, setCurrentActivity } from "../store/slices";
 import { formatDuration, formatTime } from "../utils/time";
-import type { ActivityRecord } from "../types/electron";
+import type { SessionWithActivities } from "../types/electron";
 
 const CATEGORY_COLORS: Record<string, string> = {
   development: "#6366F1",
@@ -17,53 +17,12 @@ const CATEGORY_COLORS: Record<string, string> = {
   uncategorized: "#64748B",
 };
 
-interface ActivitySession {
-  id: string;
-  app_name: string;
-  category: string;
-  activities: ActivityRecord[];
-  start_time: number;
-  end_time: number;
-  total_duration: number;
-}
-
-// Group consecutive activities by app into sessions
-function groupIntoSessions(activities: ActivityRecord[]): ActivitySession[] {
-  if (activities.length === 0) return [];
-
-  const sessions: ActivitySession[] = [];
-  let currentSession: ActivitySession | null = null;
-
-  for (const activity of activities) {
-    if (!currentSession || currentSession.app_name !== activity.app_name) {
-      // Start a new session
-      currentSession = {
-        id: `session-${activity.id}`,
-        app_name: activity.app_name,
-        category: activity.category,
-        activities: [activity],
-        start_time: activity.start_time,
-        end_time: activity.end_time,
-        total_duration: activity.duration,
-      };
-      sessions.push(currentSession);
-    } else {
-      // Add to current session
-      currentSession.activities.push(activity);
-      currentSession.end_time = activity.end_time;
-      currentSession.total_duration += activity.duration;
-    }
-  }
-
-  return sessions;
-}
-
 export function ActivitiesPage() {
   const dispatch = useAppDispatch();
-  const { activities, dateRange } = useAppSelector((state) => state.tracking);
-  const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set());
+  const { sessions, dateRange } = useAppSelector((state) => state.tracking);
+  const [expandedSessions, setExpandedSessions] = useState<Set<number>>(new Set());
 
-  const toggleSession = (sessionId: string) => {
+  const toggleSession = (sessionId: number) => {
     setExpandedSessions((prev) => {
       const next = new Set(prev);
       if (next.has(sessionId)) {
@@ -76,12 +35,12 @@ export function ActivitiesPage() {
   };
 
   useEffect(() => {
-    dispatch(fetchActivities({ start: dateRange.start, end: dateRange.end }));
+    dispatch(fetchSessions({ start: dateRange.start, end: dateRange.end }));
 
     // Listen for activity changes and refresh
     const unsubscribe = window.electronAPI.onActivityChanged((activity) => {
       dispatch(setCurrentActivity(activity));
-      dispatch(fetchActivities({ start: dateRange.start, end: Date.now() }));
+      dispatch(fetchSessions({ start: dateRange.start, end: Date.now() }));
     });
 
     return () => {
@@ -89,25 +48,17 @@ export function ActivitiesPage() {
     };
   }, [dispatch, dateRange.start]);
 
-  // Group activities by date, then into sessions
-  const groupedByDate = activities.reduce(
-    (groups, activity) => {
-      const date = new Date(activity.start_time).toLocaleDateString();
+  // Group sessions by date
+  const groupedSessions = sessions.reduce(
+    (groups, session) => {
+      const date = new Date(session.start_time).toLocaleDateString();
       if (!groups[date]) {
         groups[date] = [];
       }
-      groups[date].push(activity);
+      groups[date].push(session);
       return groups;
     },
-    {} as Record<string, ActivityRecord[]>,
-  );
-
-  const groupedActivities = Object.entries(groupedByDate).reduce(
-    (result, [date, dayActivities]) => {
-      result[date] = groupIntoSessions(dayActivities);
-      return result;
-    },
-    {} as Record<string, ActivitySession[]>,
+    {} as Record<string, SessionWithActivities[]>,
   );
 
   return (
@@ -130,7 +81,7 @@ export function ActivitiesPage() {
         </div>
       </div>
 
-      {activities.length === 0 ? (
+      {sessions.length === 0 ? (
         <Card>
           <p className="text-grey-400 text-center py-8">
             No activities recorded yet. Start using your computer and activities will
@@ -139,13 +90,14 @@ export function ActivitiesPage() {
         </Card>
       ) : (
         <div className="space-y-6">
-          {Object.entries(groupedActivities).map(([date, sessions]) => (
+          {Object.entries(groupedSessions).map(([date, daySessions]) => (
             <div key={date}>
               <h3 className="text-lg font-medium mb-3 text-grey-300">{date}</h3>
               <div className="space-y-2">
-                {sessions.map((session) => {
+                {daySessions.map((session) => {
                   const isExpanded = expandedSessions.has(session.id);
                   const hasMultipleActivities = session.activities.length > 1;
+                  const category = session.category || "uncategorized";
 
                   return (
                     <Card key={session.id} className="!p-4">
@@ -156,7 +108,7 @@ export function ActivitiesPage() {
                         <div
                           className="w-1 h-full min-h-[60px] rounded-full"
                           style={{
-                            backgroundColor: CATEGORY_COLORS[session.category],
+                            backgroundColor: CATEGORY_COLORS[category],
                           }}
                         />
                         <div className="flex-1 min-w-0">
@@ -166,80 +118,85 @@ export function ActivitiesPage() {
                               className="px-2 py-0.5 text-xs rounded-full"
                               style={{
                                 backgroundColor:
-                                  CATEGORY_COLORS[session.category] + "30",
-                                color: CATEGORY_COLORS[session.category],
+                                  CATEGORY_COLORS[category] + "30",
+                                color: CATEGORY_COLORS[category],
                               }}
                             >
-                              {session.category}
+                              {category}
                             </span>
                             {hasMultipleActivities && (
                               <span className="px-2 py-0.5 text-xs rounded-full bg-grey-700 text-grey-300">
-                                {session.activities.length} files
+                                {session.activity_count} files
                               </span>
                             )}
                           </div>
-                          {!isExpanded && (
+                          {!isExpanded && session.activities.length > 0 && (
                             <p className="text-sm text-grey-400 truncate">
                               {session.activities[0].window_title}
                               {hasMultipleActivities && (
                                 <span className="text-grey-500 ml-2">
-                                  +{session.activities.length - 1} more
+                                  +{session.activity_count - 1} more
                                 </span>
                               )}
                             </p>
                           )}
                         </div>
-                        <div className="text-right text-sm flex items-center gap-3">
-                          <div>
-                            <p className="text-grey-400">
-                              {formatTime(session.start_time)} -{" "}
-                              {formatTime(session.end_time)}
-                            </p>
-                            <p className="font-medium">
-                              {formatDuration(session.total_duration)}
-                            </p>
-                          </div>
-                          {hasMultipleActivities && (
-                            <span className="text-grey-400 text-lg">
-                              {isExpanded ? "▼" : "▶"}
-                            </span>
-                          )}
+                        <div className="text-right text-sm">
+                          <p className="text-grey-400">
+                            {formatTime(session.start_time)} -{" "}
+                            {formatTime(session.end_time)}
+                          </p>
+                          <p className="font-medium">
+                            {formatDuration(session.total_duration)}
+                          </p>
                         </div>
                       </div>
 
-                      {isExpanded && (
-                        <div className="mt-4 ml-5 pl-4 border-l border-grey-700 space-y-3">
-                          {session.activities.map((activity) => (
-                            <div
-                              key={activity.id}
-                              className="flex items-start gap-4 py-2"
-                            >
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm text-grey-300 truncate">
-                                  {activity.window_title}
-                                </p>
-                                {activity.url && (
-                                  <p className="text-xs text-info truncate">
-                                    {activity.url}
+                      <div
+                        className="grid transition-all duration-300 ease-out"
+                        style={{
+                          gridTemplateRows: isExpanded ? '1fr' : '0fr',
+                        }}
+                      >
+                        <div className="overflow-hidden">
+                          <div className="mt-4 ml-5 pl-4 border-l border-grey-700 space-y-3">
+                            {session.activities.map((activity, index) => (
+                              <div
+                                key={activity.id}
+                                className="flex items-start gap-4 py-2 transition-all duration-300"
+                                style={{
+                                  opacity: isExpanded ? 1 : 0,
+                                  transform: isExpanded ? 'translateY(0)' : 'translateY(-10px)',
+                                  transitionDelay: isExpanded ? `${index * 50}ms` : '0ms',
+                                }}
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm text-grey-300 truncate">
+                                    {activity.window_title}
                                   </p>
-                                )}
-                                {activity.project_name && (
-                                  <p className="text-xs text-purple">
-                                    Project: {activity.project_name}
+                                  {activity.url && (
+                                    <p className="text-xs text-info truncate">
+                                      {activity.url}
+                                    </p>
+                                  )}
+                                  {activity.project_name && (
+                                    <p className="text-xs text-purple">
+                                      Project: {activity.project_name}
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="text-right text-xs text-grey-400">
+                                  <p>
+                                    {formatTime(activity.start_time)} -{" "}
+                                    {formatTime(activity.end_time)}
                                   </p>
-                                )}
+                                  <p>{formatDuration(activity.duration)}</p>
+                                </div>
                               </div>
-                              <div className="text-right text-xs text-grey-400">
-                                <p>
-                                  {formatTime(activity.start_time)} -{" "}
-                                  {formatTime(activity.end_time)}
-                                </p>
-                                <p>{formatDuration(activity.duration)}</p>
-                              </div>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
-                      )}
+                      </div>
                     </Card>
                   );
                 })}

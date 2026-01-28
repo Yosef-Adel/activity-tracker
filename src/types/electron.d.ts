@@ -53,6 +53,7 @@ export interface DailyTotal {
 
 export interface ActivityRecord {
   id: number;
+  session_id: number | null;
   app_name: string;
   window_title: string;
   url: string | null;
@@ -69,6 +70,21 @@ export interface ActivityRecord {
   created_at: string;
 }
 
+export interface SessionRecord {
+  id: number;
+  app_name: string;
+  category: string | null;
+  start_time: number;
+  end_time: number;
+  total_duration: number;
+  activity_count: number;
+  created_at: string | null;
+}
+
+export interface SessionWithActivities extends SessionRecord {
+  activities: ActivityRecord[];
+}
+
 export interface ElectronAPI {
   // Tracker status
   getTrackerStatus: () => Promise<TrackerStatus | null>;
@@ -82,6 +98,7 @@ export interface ElectronAPI {
   getDailyTotals: (days: number) => Promise<DailyTotal[]>;
   getTotalTime: (startTime: number, endTime: number) => Promise<number>;
   getActivities: (startTime: number, endTime: number) => Promise<ActivityRecord[]>;
+  getSessions: (startTime: number, endTime: number) => Promise<SessionWithActivities[]>;
 
   // Categories
   getCategoryColor: (category: string) => Promise<string>;

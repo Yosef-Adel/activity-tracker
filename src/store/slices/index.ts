@@ -10,4 +10,5 @@ export {
   fetchTrackerStatus,
   fetchDashboardData,
   fetchActivities,
+  fetchSessions,
 } from './trackingSlice';

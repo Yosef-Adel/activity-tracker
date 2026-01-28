@@ -7,6 +7,7 @@ import type {
   ProjectTime,
   DomainUsage,
   ActivityRecord,
+  SessionWithActivities,
 } from "../../types/electron";
 
 interface TrackingState {
@@ -17,6 +18,7 @@ interface TrackingState {
   projectTime: ProjectTime[];
   domainUsage: DomainUsage[];
   activities: ActivityRecord[];
+  sessions: SessionWithActivities[];
   totalTime: number;
   isLoading: boolean;
   error: string | null;
@@ -40,6 +42,7 @@ const initialState: TrackingState = {
   projectTime: [],
   domainUsage: [],
   activities: [],
+  sessions: [],
   totalTime: 0,
   isLoading: false,
   error: null,
@@ -82,6 +85,13 @@ export const fetchActivities = createAsyncThunk(
   "tracking/fetchActivities",
   async ({ start, end }: { start: number; end: number }) => {
     return await window.electronAPI.getActivities(start, end);
+  },
+);
+
+export const fetchSessions = createAsyncThunk(
+  "tracking/fetchSessions",
+  async ({ start, end }: { start: number; end: number }) => {
+    return await window.electronAPI.getSessions(start, end);
   },
 );
 
@@ -145,6 +155,9 @@ const trackingSlice = createSlice({
       })
       .addCase(fetchActivities.fulfilled, (state, action) => {
         state.activities = action.payload;
+      })
+      .addCase(fetchSessions.fulfilled, (state, action) => {
+        state.sessions = action.payload;
       });
   },
 });

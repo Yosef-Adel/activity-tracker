@@ -91,10 +91,11 @@ class TimeTracker {
     const wasIdle = this.isIdle;
     this.isIdle = idleSeconds >= this.idleThresholdSeconds;
 
-    // User went idle - save current activity
+    // User went idle - save current activity and close session
     if (this.isIdle && !wasIdle) {
       console.log(`User idle for ${idleSeconds}s, pausing tracking...`);
       this.saveCurrentActivity();
+      this.db.closeCurrentSession();
       this.currentActivity = null;
       this.activityStartTime = null;
 
@@ -133,7 +134,16 @@ class TimeTracker {
     };
 
     if (this.hasActivityChanged(activity)) {
+      // Check if the app changed (not just title/url within same app)
+      const appChanged = this.hasAppChanged(activity);
+
       this.saveCurrentActivity();
+
+      // Close session when switching to a different app
+      if (appChanged) {
+        this.db.closeCurrentSession();
+      }
+
       this.startNewActivity(activity);
 
       if (this.onActivityChange) {
@@ -150,6 +160,11 @@ class TimeTracker {
       this.currentActivity.title !== newActivity.title ||
       this.currentActivity.url !== newActivity.url
     );
+  }
+
+  private hasAppChanged(newActivity: CurrentActivity): boolean {
+    if (!this.currentActivity) return true;
+    return this.currentActivity.appName !== newActivity.appName;
   }
 
   private startNewActivity(activity: CurrentActivity): void {
