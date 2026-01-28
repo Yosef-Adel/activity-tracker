@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { Card } from "../components";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
-import { fetchActivities, setDateRangeToday, setDateRangeWeek } from "../store/slices";
+import { fetchActivities, setDateRangeToday, setDateRangeWeek, setCurrentActivity } from "../store/slices";
 import { formatDuration, formatTime } from "../utils/time";
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -22,7 +22,17 @@ export function ActivitiesPage() {
 
   useEffect(() => {
     dispatch(fetchActivities({ start: dateRange.start, end: dateRange.end }));
-  }, [dispatch, dateRange]);
+
+    // Listen for activity changes and refresh
+    const unsubscribe = window.electronAPI.onActivityChanged((activity) => {
+      dispatch(setCurrentActivity(activity));
+      dispatch(fetchActivities({ start: dateRange.start, end: Date.now() }));
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [dispatch, dateRange.start]);
 
   // Group activities by date
   const groupedActivities = activities.reduce(

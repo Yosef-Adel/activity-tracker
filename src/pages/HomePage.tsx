@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Card } from "../components";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import {
@@ -9,6 +9,30 @@ import {
   setDateRangeWeek,
 } from "../store/slices";
 import { formatDuration, getPercentage } from "../utils/time";
+
+// Hook for live elapsed time
+function useElapsedTime(startTime: number | null) {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    if (!startTime) {
+      setElapsed(0);
+      return;
+    }
+
+    // Initial calculation
+    setElapsed(Date.now() - startTime);
+
+    // Update every second
+    const interval = setInterval(() => {
+      setElapsed(Date.now() - startTime);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [startTime]);
+
+  return elapsed;
+}
 
 const CATEGORY_COLORS: Record<string, string> = {
   development: "#6366F1",
@@ -35,6 +59,9 @@ export function HomePage() {
     isLoading,
   } = useAppSelector((state) => state.tracking);
 
+  // Live timer for current activity
+  const elapsedTime = useElapsedTime(status?.trackingSince ?? null);
+
   useEffect(() => {
     dispatch(fetchTrackerStatus());
     dispatch(setDateRangeToday());
@@ -42,6 +69,8 @@ export function HomePage() {
     // Listen for activity changes and refresh data
     const unsubscribe = window.electronAPI.onActivityChanged((activity) => {
       dispatch(setCurrentActivity(activity));
+      // Refresh tracker status to get new trackingSince for timer
+      dispatch(fetchTrackerStatus());
       // Refresh dashboard data when activity changes
       dispatch(fetchDashboardData({ start: dateRange.start, end: Date.now() }));
     });
@@ -108,6 +137,9 @@ export function HomePage() {
               <p className="text-sm text-grey-300 truncate">{currentActivity.title}</p>
             </div>
             <div className="text-right">
+              <p className="text-lg font-mono font-bold mb-1">
+                {formatDuration(elapsedTime)}
+              </p>
               <span
                 className="px-2 py-1 text-xs rounded-full"
                 style={{
