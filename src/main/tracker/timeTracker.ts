@@ -1,3 +1,4 @@
+import { powerMonitor } from "electron";
 import PlatformTracker from "./platformTracker";
 import ActivityCategorizer from "./categorizer";
 import ContextExtractor from "./contextExtractor";
@@ -19,6 +20,7 @@ export interface TrackerStatus {
   platformMessage: string;
   currentActivity: CurrentActivity | null;
   trackingSince: number | null;
+  isIdle: boolean;
 }
 
 class TimeTracker {
@@ -31,7 +33,9 @@ class TimeTracker {
   private activityStartTime: number | null = null;
   private trackingInterval: NodeJS.Timeout | null = null;
   private isRunning = false;
+  private isIdle = false;
   private checkIntervalMs = 5000; // Check every 5 seconds
+  private idleThresholdSeconds = 120; // 2 minutes of inactivity = idle
 
   private onActivityChange?: (activity: CurrentActivity | null) => void;
 
@@ -82,6 +86,34 @@ class TimeTracker {
   }
 
   private async track(): Promise<void> {
+    // Check idle state
+    const idleSeconds = powerMonitor.getSystemIdleTime();
+    const wasIdle = this.isIdle;
+    this.isIdle = idleSeconds >= this.idleThresholdSeconds;
+
+    // User went idle - save current activity
+    if (this.isIdle && !wasIdle) {
+      console.log(`User idle for ${idleSeconds}s, pausing tracking...`);
+      this.saveCurrentActivity();
+      this.currentActivity = null;
+      this.activityStartTime = null;
+
+      if (this.onActivityChange) {
+        this.onActivityChange(null);
+      }
+      return;
+    }
+
+    // User is still idle - don't track
+    if (this.isIdle) {
+      return;
+    }
+
+    // User returned from idle
+    if (!this.isIdle && wasIdle) {
+      console.log("User active again, resuming tracking...");
+    }
+
     const window = await this.platformTracker.getActiveWindow();
     if (!window) return;
 
@@ -162,6 +194,7 @@ class TimeTracker {
       platformMessage: platformInfo.message,
       currentActivity: this.currentActivity,
       trackingSince: this.activityStartTime,
+      isIdle: this.isIdle,
     };
   }
 

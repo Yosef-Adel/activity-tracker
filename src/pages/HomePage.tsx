@@ -77,6 +77,7 @@ export function HomePage() {
 
     // Also set up periodic refresh every 10 seconds for live updates
     const refreshInterval = setInterval(() => {
+      dispatch(fetchTrackerStatus()); // Check for idle state changes
       dispatch(fetchDashboardData({ start: dateRange.start, end: Date.now() }));
     }, 10000);
 
@@ -123,8 +124,22 @@ export function HomePage() {
         </div>
       )}
 
+      {/* Idle State */}
+      {status?.isIdle && (
+        <Card className="mb-6 !bg-grey-800/50 border border-grey-700">
+          <div className="flex items-center gap-4">
+            <div className="w-3 h-3 rounded-full bg-grey-500" />
+            <div className="flex-1">
+              <p className="text-sm text-grey-500">Idle</p>
+              <p className="font-medium text-grey-400">No activity detected</p>
+              <p className="text-sm text-grey-500">Tracking paused due to inactivity</p>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Current Activity */}
-      {currentActivity && (
+      {currentActivity && !status?.isIdle && (
         <Card variant="blue" className="mb-6">
           <div className="flex items-center gap-4">
             <div

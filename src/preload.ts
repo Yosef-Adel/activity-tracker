@@ -14,6 +14,7 @@ export interface TrackerStatus {
   platformMessage: string;
   currentActivity: CurrentActivity | null;
   trackingSince: number | null;
+  isIdle: boolean;
 }
 
 export interface AppUsage {
