@@ -1,8 +1,98 @@
+@import "tailwindcss";
+
+@theme {
+  /* Primary */
+  --color-primary-lighter: #C7D2FE;
+  --color-primary-light: #A5B4FC;
+  --color-primary: #6366F1;
+  --color-primary-dark: #4F46E5;
+  --color-primary-darker: #4338CA;
+  --color-primary-contrast: #FFFFFF;
+
+  /* Secondary */
+  --color-secondary-lighter: #475569;
+  --color-secondary-light: #334155;
+  --color-secondary: #1E293B;
+  --color-secondary-dark: #0F172A;
+  --color-secondary-darker: #020617;
+  --color-secondary-contrast: #FFFFFF;
+
+  /* Info */
+  --color-info-lighter: #BAE6FD;
+  --color-info-light: #7DD3FC;
+  --color-info: #0EA5E9;
+  --color-info-dark: #0284C7;
+  --color-info-darker: #0369A1;
+  --color-info-contrast: #FFFFFF;
+
+  /* Success */
+  --color-success-lighter: #BBF7D0;
+  --color-success-light: #86EFAC;
+  --color-success: #22C55E;
+  --color-success-dark: #16A34A;
+  --color-success-darker: #15803D;
+  --color-success-contrast: #FFFFFF;
+
+  /* Warning */
+  --color-warning-lighter: #FEF08A;
+  --color-warning-light: #FDE047;
+  --color-warning: #EAB308;
+  --color-warning-dark: #CA8A04;
+  --color-warning-darker: #A16207;
+  --color-warning-contrast: #0F172A;
+
+  /* Error */
+  --color-error-lighter: #FECACA;
+  --color-error-light: #FCA5A5;
+  --color-error: #EF4444;
+  --color-error-dark: #DC2626;
+  --color-error-darker: #B91C1C;
+  --color-error-contrast: #FFFFFF;
+
+  /* Purple */
+  --color-purple-lighter: #E9D5FF;
+  --color-purple-light: #D8B4FE;
+  --color-purple: #A855F7;
+  --color-purple-dark: #9333EA;
+  --color-purple-darker: #7E22CE;
+  --color-purple-contrast: #FFFFFF;
+
+  /* Destructive */
+  --color-destructive-lighter: #FECACA;
+  --color-destructive-light: #F87171;
+  --color-destructive: #DC2626;
+  --color-destructive-dark: #B91C1C;
+  --color-destructive-darker: #7F1D1D;
+  --color-destructive-contrast: #FFFFFF;
+
+  /* Grey */
+  --color-grey-50: #F8FAFC;
+  --color-grey-100: #F1F5F9;
+  --color-grey-200: #E2E8F0;
+  --color-grey-300: #CBD5E1;
+  --color-grey-400: #94A3B8;
+  --color-grey-500: #64748B;
+  --color-grey-600: #475569;
+  --color-grey-700: #334155;
+  --color-grey-800: #1E293B;
+  --color-grey-900: #0F172A;
+
+  /* Background */
+  --color-background-light: #FFFFFF;
+  --color-background-dark: #0A0E1E;
+  --color-background-card: #1A1F35;
+  --color-background-card-blue: #1E3A5F;
+  --color-background-card-green: #1E4D3D;
+  --color-background-card-brown: #5D4037;
+  --color-background-muted: #1E293B;
+  --color-background-accent: #6366F1;
+}
+
 body {
   font-family:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
     sans-serif;
-  margin: auto;
-  max-width: 38rem;
-  padding: 2rem;
+  background-color: var(--color-background-dark);
+  color: white;
+  min-height: 100vh;
 }
