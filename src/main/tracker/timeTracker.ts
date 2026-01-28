@@ -32,7 +32,7 @@ class TimeTracker {
   private trackingInterval: NodeJS.Timeout | null = null;
   private saveInterval: NodeJS.Timeout | null = null;
   private isRunning = false;
-  private checkIntervalMs = 2000; // Check every 2 seconds
+  private checkIntervalMs = 5000; // Check every 5 seconds
   private saveIntervalMs = 30000; // Save current activity every 30 seconds
 
   private onActivityChange?: (activity: CurrentActivity | null) => void;
