@@ -43,6 +43,7 @@ class ActivityCategorizer {
           "Hyper",
           "Alacritty",
           "kitty",
+          "Electron",
         ],
         domains: [
           "github.com",
@@ -54,13 +55,18 @@ class ActivityCategorizer {
         ],
         keywords: [
           "debug",
-          "code",
+          "coding",
           "terminal",
           "git",
           "npm",
           "yarn",
           "build",
-          "ta",
+          "compile",
+          "deploy",
+          "\\bta\\b",    // tmux attach (word boundary)
+          "\\btat\\b",   // tmux alias (word boundary)
+          "nvim",
+          "vim",
         ],
       },
       communication: {
@@ -182,18 +188,20 @@ class ActivityCategorizer {
     const title = activity.title?.toLowerCase() || "";
     const url = activity.url?.toLowerCase() || "";
 
+    // Priority 1: Check app names first (most reliable)
     for (const [category, rules] of Object.entries(this.categories)) {
       if (category === "uncategorized") continue;
-
-      // Check apps
       if (
         rules.apps &&
         rules.apps.some((app) => appName.includes(app.toLowerCase()))
       ) {
         return category as Category;
       }
+    }
 
-      // Check domains
+    // Priority 2: Check domains
+    for (const [category, rules] of Object.entries(this.categories)) {
+      if (category === "uncategorized") continue;
       if (
         rules.domains &&
         url &&
@@ -201,11 +209,23 @@ class ActivityCategorizer {
       ) {
         return category as Category;
       }
+    }
 
-      // Check keywords
+    // Priority 3: Check keywords in title/url (least reliable)
+    for (const [category, rules] of Object.entries(this.categories)) {
+      if (category === "uncategorized") continue;
       if (rules.keywords) {
         const combinedText = `${title} ${url}`;
-        if (rules.keywords.some((keyword) => combinedText.includes(keyword))) {
+        const matched = rules.keywords.some((keyword) => {
+          // If keyword contains \b, treat as regex (word boundary matching)
+          if (keyword.includes("\\b")) {
+            const regex = new RegExp(keyword, "i");
+            return regex.test(combinedText);
+          }
+          // Otherwise simple substring match
+          return combinedText.includes(keyword);
+        });
+        if (matched) {
           return category as Category;
         }
       }
