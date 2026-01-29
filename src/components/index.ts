@@ -1,2 +1,2 @@
 export { Button } from './Button';
-export { Card } from './Card';
+export { Card, StatCard, ScoreCircle } from './Card';

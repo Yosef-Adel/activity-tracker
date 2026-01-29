@@ -1,14 +1,16 @@
-import { useEffect, useState } from "react";
-import { Card } from "../components";
+import { useEffect, useState, useMemo } from "react";
+import { Card, ScoreCircle } from "../components";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import {
   fetchTrackerStatus,
   fetchDashboardData,
+  fetchActivities,
   setCurrentActivity,
   setDateRangeToday,
   setDateRangeWeek,
 } from "../store/slices";
 import { formatDuration, getPercentage } from "../utils/time";
+import type { HourlyPattern, DomainUsage } from "../types/electron";
 
 // Hook for live elapsed time
 function useElapsedTime(startTime: number | null) {
@@ -19,15 +21,10 @@ function useElapsedTime(startTime: number | null) {
       setElapsed(0);
       return;
     }
-
-    // Initial calculation
     setElapsed(Date.now() - startTime);
-
-    // Update every second
     const interval = setInterval(() => {
       setElapsed(Date.now() - startTime);
     }, 1000);
-
     return () => clearInterval(interval);
   }, [startTime]);
 
@@ -35,16 +32,18 @@ function useElapsedTime(startTime: number | null) {
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
-  development: "#6366F1",
-  communication: "#22C55E",
-  social: "#EAB308",
-  entertainment: "#EF4444",
-  productivity: "#A855F7",
-  research: "#0EA5E9",
-  email: "#EC4899",
-  design: "#F97316",
-  uncategorized: "#64748B",
+  development: "#8b5cf6",
+  communication: "#22c55e",
+  social: "#eab308",
+  entertainment: "#ef4444",
+  productivity: "#a855f7",
+  research: "#0ea5e9",
+  email: "#ec4899",
+  design: "#f97316",
+  uncategorized: "#71717a",
 };
+
+const PRODUCTIVE_CATEGORIES = ["development", "productivity", "research", "design"];
 
 export function HomePage() {
   const dispatch = useAppDispatch();
@@ -56,245 +55,344 @@ export function HomePage() {
     projectTime,
     totalTime,
     dateRange,
-    isLoading,
+    activities,
   } = useAppSelector((state) => state.tracking);
 
-  // Live timer for current activity
+  const [hourlyPattern, setHourlyPattern] = useState<HourlyPattern[]>([]);
+  const [domainUsage, setDomainUsage] = useState<DomainUsage[]>([]);
+  const [viewMode, setViewMode] = useState<"day" | "week">("day");
+
   const elapsedTime = useElapsedTime(status?.trackingSince ?? null);
+
+  // Calculate scores
+  const scores = useMemo(() => {
+    const productiveTime = categoryBreakdown
+      .filter((c) => PRODUCTIVE_CATEGORIES.includes(c.category))
+      .reduce((sum, c) => sum + c.total_duration, 0);
+
+    const meetingTime = categoryBreakdown
+      .filter((c) => c.category === "communication")
+      .reduce((sum, c) => sum + c.total_duration, 0);
+
+    const focusScore = totalTime > 0 ? Math.round((productiveTime / totalTime) * 100) : 0;
+    const meetingPercent = totalTime > 0 ? Math.round((meetingTime / totalTime) * 100) : 0;
+
+    return {
+      focus: focusScore,
+      focusTime: productiveTime,
+      meetings: meetingPercent,
+      meetingTime: meetingTime,
+    };
+  }, [categoryBreakdown, totalTime]);
+
+  // Timeline data (hourly blocks)
+  const timelineData = useMemo(() => {
+    const hours = [];
+    // Find max minutes for scaling
+    let maxMinutes = 0;
+    const hourTotals: { [key: number]: { minutes: number; category: string | null } } = {};
+
+    for (let i = 6; i <= 21; i++) {
+      const hourStr = i.toString().padStart(2, "0");
+      const hourData = hourlyPattern.filter((h) => h.hour === hourStr);
+      const totalMinutes = hourData.reduce((sum, h) => sum + h.total_duration / 60000, 0);
+      const dominantCategory = hourData.length > 0
+        ? hourData.reduce((max, h) => (h.total_duration > max.total_duration ? h : max), hourData[0]).category
+        : null;
+
+      hourTotals[i] = { minutes: totalMinutes, category: dominantCategory };
+      if (totalMinutes > maxMinutes) maxMinutes = totalMinutes;
+    }
+
+    // Scale based on max (or use 60 minutes as baseline if no data)
+    const scaleMax = Math.max(maxMinutes, 30);
+
+    for (let i = 6; i <= 21; i++) {
+      const { minutes, category } = hourTotals[i];
+      hours.push({
+        hour: i,
+        label: `${i}:00`,
+        minutes,
+        category,
+        height: minutes > 0 ? Math.max(8, (minutes / scaleMax) * 100) : 0,
+      });
+    }
+    return hours;
+  }, [hourlyPattern]);
 
   useEffect(() => {
     dispatch(fetchTrackerStatus());
-    dispatch(setDateRangeToday());
-
-    // Listen for activity changes and refresh data
-    const unsubscribe = window.electronAPI.onActivityChanged((activity) => {
-      dispatch(setCurrentActivity(activity));
-      // Refresh tracker status to get new trackingSince for timer
-      dispatch(fetchTrackerStatus());
-      // Refresh dashboard data when activity changes
-      dispatch(fetchDashboardData({ start: dateRange.start, end: Date.now() }));
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [dispatch, dateRange.start]);
+    if (viewMode === "day") {
+      dispatch(setDateRangeToday());
+    } else {
+      dispatch(setDateRangeWeek());
+    }
+  }, [dispatch, viewMode]);
 
   useEffect(() => {
     dispatch(fetchDashboardData({ start: dateRange.start, end: dateRange.end }));
+    dispatch(fetchActivities({ start: dateRange.start, end: dateRange.end }));
+    window.electronAPI.getHourlyPattern(dateRange.start, dateRange.end).then(setHourlyPattern);
+    window.electronAPI.getDomainUsage(dateRange.start, dateRange.end).then(setDomainUsage);
+
+    const unsubscribe = window.electronAPI.onActivityChanged((activity) => {
+      dispatch(setCurrentActivity(activity));
+      dispatch(fetchTrackerStatus());
+      dispatch(fetchDashboardData({ start: dateRange.start, end: Date.now() }));
+      dispatch(fetchActivities({ start: dateRange.start, end: Date.now() }));
+      window.electronAPI.getHourlyPattern(dateRange.start, Date.now()).then(setHourlyPattern);
+      window.electronAPI.getDomainUsage(dateRange.start, Date.now()).then(setDomainUsage);
+    });
+
+    return () => unsubscribe();
   }, [dispatch, dateRange]);
 
+  const today = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const workDayPercent = Math.min(100, Math.round((totalTime / (8 * 60 * 60 * 1000)) * 100));
+
   return (
-    <div className="p-8">
+    <div className="p-6">
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">Dashboard</h2>
-        <div className="flex gap-2">
+        <div>
+          <h1 className="text-xl font-semibold text-white">{today}</h1>
+        </div>
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => dispatch(setDateRangeToday())}
-            className="px-3 py-1.5 text-sm rounded-lg bg-secondary hover:bg-secondary-light transition-colors"
+            onClick={() => setViewMode("day")}
+            className={`px-4 py-1.5 text-sm rounded-md transition-all ${
+              viewMode === "day"
+                ? "bg-white/10 text-white"
+                : "text-grey-400 hover:text-white"
+            }`}
           >
-            Today
+            Day
           </button>
           <button
-            onClick={() => dispatch(setDateRangeWeek())}
-            className="px-3 py-1.5 text-sm rounded-lg bg-secondary hover:bg-secondary-light transition-colors"
+            onClick={() => setViewMode("week")}
+            className={`px-4 py-1.5 text-sm rounded-md transition-all ${
+              viewMode === "week"
+                ? "bg-white/10 text-white"
+                : "text-grey-400 hover:text-white"
+            }`}
           >
             Week
           </button>
         </div>
       </div>
 
-      {/* Status Banner */}
-      {status && (
-        <div
-          className={`mb-6 p-4 rounded-lg ${
-            status.isRunning ? "bg-success/20" : "bg-warning/20"
-          }`}
-        >
-          <p className={status.isRunning ? "text-success" : "text-warning"}>
-            {status.platformMessage}
-          </p>
-        </div>
-      )}
-
-      {/* Idle State */}
-      {status?.isIdle && (
-        <Card className="mb-6 !bg-grey-800/50 border border-grey-700">
-          <div className="flex items-center gap-4">
-            <div className="w-3 h-3 rounded-full bg-grey-500" />
-            <div className="flex-1">
-              <p className="text-sm text-grey-500">Idle</p>
-              <p className="font-medium text-grey-400">No activity detected</p>
-              <p className="text-sm text-grey-500">Tracking paused due to inactivity</p>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* Current Activity */}
-      {currentActivity && !status?.isIdle && (
-        <Card variant="blue" className="mb-6">
-          <div className="flex items-center gap-4">
-            <div
-              className="w-3 h-3 rounded-full animate-pulse"
-              style={{ backgroundColor: CATEGORY_COLORS[currentActivity.category] }}
-            />
-            <div className="flex-1">
-              <p className="text-sm text-grey-400">Currently tracking</p>
-              <p className="font-medium">{currentActivity.appName}</p>
-              <p className="text-sm text-grey-300 truncate">{currentActivity.title}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-lg font-mono font-bold mb-1">
-                {formatDuration(elapsedTime)}
-              </p>
-              <span
-                className="px-2 py-1 text-xs rounded-full"
-                style={{
-                  backgroundColor: CATEGORY_COLORS[currentActivity.category] + "30",
-                  color: CATEGORY_COLORS[currentActivity.category],
-                }}
-              >
-                {currentActivity.category}
-              </span>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Card>
-          <p className="text-sm text-grey-400 mb-1">Total Time</p>
-          <p className="text-2xl font-bold">{formatDuration(totalTime)}</p>
-        </Card>
-        <Card>
-          <p className="text-sm text-grey-400 mb-1">Apps Used</p>
-          <p className="text-2xl font-bold">{appUsage.length}</p>
-        </Card>
-        <Card>
-          <p className="text-sm text-grey-400 mb-1">Projects</p>
-          <p className="text-2xl font-bold">{projectTime.length}</p>
-        </Card>
-        <Card>
-          <p className="text-sm text-grey-400 mb-1">Sessions</p>
-          <p className="text-2xl font-bold">
-            {appUsage.reduce((sum, app) => sum + app.session_count, 0)}
-          </p>
-        </Card>
-      </div>
-
-      {isLoading ? (
-        <div className="text-center py-8 text-grey-400">Loading...</div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Category Breakdown */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+        {/* Main Content - Left Side */}
+        <div className="xl:col-span-8 space-y-4">
+          {/* Timeline Card */}
           <Card>
-            <h3 className="text-lg font-semibold mb-4">Categories</h3>
-            {categoryBreakdown.length === 0 ? (
-              <p className="text-grey-400">No data yet</p>
-            ) : (
+            <p className="text-[11px] uppercase tracking-wider text-grey-500 mb-4">Timeline</p>
+            <div className="flex items-end gap-1.5 h-20">
+              {timelineData.map((hour) => (
+                <div key={hour.hour} className="flex-1 flex flex-col items-center justify-end h-full">
+                  <div
+                    className="w-full rounded-t transition-all duration-300"
+                    style={{
+                      height: hour.minutes > 0 ? `${hour.height}%` : "4px",
+                      backgroundColor: hour.category
+                        ? CATEGORY_COLORS[hour.category]
+                        : "#27272a",
+                      minHeight: hour.minutes > 0 ? "8px" : "4px",
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-between mt-3 text-[10px] text-grey-500">
+              {timelineData.filter((_, i) => i % 2 === 0).map((hour) => (
+                <span key={hour.hour}>{hour.hour}:00</span>
+              ))}
+            </div>
+          </Card>
+
+          {/* Current Activity */}
+          {currentActivity && !status?.isIdle && (
+            <Card className="border-l-2 border-l-primary">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-2 h-2 rounded-full animate-pulse"
+                    style={{ backgroundColor: CATEGORY_COLORS[currentActivity.category] }}
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-white">{currentActivity.appName}</p>
+                    <p className="text-xs text-grey-500 truncate max-w-md">{currentActivity.title}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-lg font-mono font-semibold text-white">
+                    {formatDuration(elapsedTime)}
+                  </p>
+                  <span
+                    className="text-[10px] uppercase tracking-wider"
+                    style={{ color: CATEGORY_COLORS[currentActivity.category] }}
+                  >
+                    {currentActivity.category}
+                  </span>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Activity Feed */}
+            <Card>
+              <p className="text-[11px] uppercase tracking-wider text-grey-500 mb-4">Activity</p>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {activities.slice(0, 15).map((activity) => (
+                  <div key={activity.id} className="flex items-center gap-3 text-sm">
+                    <span className="text-grey-500 text-xs font-mono w-14">
+                      {new Date(activity.start_time).toLocaleTimeString("en-US", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: false,
+                      })}
+                    </span>
+                    <span
+                      className="w-1 h-4 rounded-full"
+                      style={{ backgroundColor: CATEGORY_COLORS[activity.category] || CATEGORY_COLORS.uncategorized }}
+                    />
+                    <span className="text-white truncate flex-1">{activity.app_name}</span>
+                    <span className="text-grey-500 text-xs">{formatDuration(activity.duration)}</span>
+                  </div>
+                ))}
+                {activities.length === 0 && (
+                  <p className="text-grey-500 text-sm">No activity yet</p>
+                )}
+              </div>
+            </Card>
+
+            {/* Projects */}
+            <Card>
+              <p className="text-[11px] uppercase tracking-wider text-grey-500 mb-4">Projects</p>
               <div className="space-y-3">
-                {categoryBreakdown.map((cat) => (
-                  <div key={cat.category}>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="capitalize">{cat.category}</span>
-                      <span className="text-grey-400">
-                        {formatDuration(cat.total_duration)}
+                {projectTime.slice(0, 6).map((project) => {
+                  const percent = getPercentage(project.total_duration, totalTime);
+                  return (
+                    <div key={project.project_name} className="flex items-center gap-3">
+                      <span className="text-xs text-grey-500 w-8">{percent}%</span>
+                      <span className="text-sm text-white flex-1 truncate">{project.project_name}</span>
+                      <div className="w-20 h-1.5 bg-grey-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary rounded-full"
+                          style={{ width: `${percent}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-grey-500 w-16 text-right">
+                        {formatDuration(project.total_duration)}
                       </span>
                     </div>
-                    <div className="h-2 bg-grey-800 rounded-full overflow-hidden">
+                  );
+                })}
+                {projectTime.length === 0 && (
+                  <p className="text-grey-500 text-sm">No projects detected</p>
+                )}
+              </div>
+            </Card>
+          </div>
+        </div>
+
+        {/* Right Sidebar */}
+        <div className="xl:col-span-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-4">
+          {/* Work Hours */}
+          <Card>
+            <p className="text-[11px] uppercase tracking-wider text-grey-500 mb-3">Work Hours</p>
+            <div className="flex flex-wrap items-baseline justify-between gap-4 mb-4">
+              <div>
+                <p className="text-[11px] text-grey-500 mb-1">Total time</p>
+                <p className="text-2xl xl:text-3xl font-semibold text-white">{formatDuration(totalTime)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[11px] text-grey-500 mb-1">Of work day</p>
+                <p className="text-xl xl:text-2xl font-semibold text-white">{workDayPercent}%</p>
+                <p className="text-[10px] text-grey-500">of 8hr</p>
+              </div>
+            </div>
+            <div className="flex items-center justify-between text-xs text-grey-500">
+              <span>Tracking: {status?.isRunning ? "On" : "Off"}</span>
+              {status?.isIdle && <span className="text-warning">Idle</span>}
+            </div>
+          </Card>
+
+          {/* Scores */}
+          <Card>
+            <p className="text-[11px] uppercase tracking-wider text-grey-500 mb-4">Scores</p>
+            <div className="flex flex-wrap gap-4">
+              <ScoreCircle
+                score={scores.focus}
+                label="Focus"
+                subLabel={formatDuration(scores.focusTime)}
+                color="#8b5cf6"
+              />
+              <ScoreCircle
+                score={scores.meetings}
+                label="Meetings"
+                subLabel={formatDuration(scores.meetingTime)}
+                color="#22c55e"
+              />
+            </div>
+          </Card>
+
+          {/* Time Breakdown */}
+          <Card>
+            <p className="text-[11px] uppercase tracking-wider text-grey-500 mb-4">Time Breakdown</p>
+            <div className="space-y-2.5">
+              {categoryBreakdown.slice(0, 6).map((cat) => {
+                const percent = getPercentage(cat.total_duration, totalTime);
+                return (
+                  <div key={cat.category} className="flex items-center gap-2">
+                    <span className="text-xs text-grey-500 w-7 flex-shrink-0">{percent}%</span>
+                    <span className="capitalize text-sm text-white flex-1 truncate min-w-0">{cat.category}</span>
+                    <div className="w-12 h-1.5 bg-grey-800 rounded-full overflow-hidden flex-shrink-0">
                       <div
-                        className="h-full rounded-full transition-all"
+                        className="h-full rounded-full"
                         style={{
-                          width: `${getPercentage(cat.total_duration, totalTime)}%`,
-                          backgroundColor: CATEGORY_COLORS[cat.category],
+                          width: `${percent}%`,
+                          backgroundColor: CATEGORY_COLORS[cat.category] || CATEGORY_COLORS.uncategorized,
                         }}
                       />
                     </div>
+                    <span className="text-xs text-grey-500 flex-shrink-0">
+                      {formatDuration(cat.total_duration)}
+                    </span>
                   </div>
-                ))}
-              </div>
-            )}
+                );
+              })}
+              {categoryBreakdown.length === 0 && (
+                <p className="text-grey-500 text-sm">No data yet</p>
+              )}
+            </div>
           </Card>
 
           {/* Top Apps */}
           <Card>
-            <h3 className="text-lg font-semibold mb-4">Top Apps</h3>
-            {appUsage.length === 0 ? (
-              <p className="text-grey-400">No data yet</p>
-            ) : (
-              <div className="space-y-3">
-                {appUsage.slice(0, 5).map((app) => (
-                  <div
-                    key={app.app_name}
-                    className="flex items-center justify-between"
-                  >
-                    <span className="truncate flex-1">{app.app_name}</span>
-                    <span className="text-grey-400 ml-2">
-                      {formatDuration(app.total_duration)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-
-          {/* Projects */}
-          <Card variant="green">
-            <h3 className="text-lg font-semibold mb-4">Projects</h3>
-            {projectTime.length === 0 ? (
-              <p className="text-grey-300">No projects detected</p>
-            ) : (
-              <div className="space-y-3">
-                {projectTime.slice(0, 5).map((project) => (
-                  <div
-                    key={project.project_name}
-                    className="flex items-center justify-between"
-                  >
-                    <span className="truncate flex-1">{project.project_name}</span>
-                    <span className="text-grey-300 ml-2">
-                      {formatDuration(project.total_duration)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-
-          {/* Quick Stats */}
-          <Card variant="brown">
-            <h3 className="text-lg font-semibold mb-4">Productivity Score</h3>
-            {categoryBreakdown.length === 0 ? (
-              <p className="text-grey-300">Start tracking to see your score</p>
-            ) : (
-              <div>
-                {(() => {
-                  const productiveCategories = [
-                    "development",
-                    "productivity",
-                    "research",
-                    "design",
-                  ];
-                  const productiveTime = categoryBreakdown
-                    .filter((c) => productiveCategories.includes(c.category))
-                    .reduce((sum, c) => sum + c.total_duration, 0);
-                  const score = getPercentage(productiveTime, totalTime);
-
-                  return (
-                    <>
-                      <p className="text-4xl font-bold mb-2">{score}%</p>
-                      <p className="text-grey-300 text-sm">
-                        {formatDuration(productiveTime)} productive time
-                      </p>
-                    </>
-                  );
-                })()}
-              </div>
-            )}
+            <p className="text-[11px] uppercase tracking-wider text-grey-500 mb-4">Top Apps</p>
+            <div className="space-y-2">
+              {appUsage.slice(0, 5).map((app, index) => (
+                <div key={app.app_name} className="flex items-center gap-2">
+                  <span className="text-xs text-grey-600 w-4 flex-shrink-0">{index + 1}</span>
+                  <span className="text-sm text-white flex-1 truncate min-w-0">{app.app_name}</span>
+                  <span className="text-xs text-grey-500 flex-shrink-0">{formatDuration(app.total_duration)}</span>
+                </div>
+              ))}
+              {appUsage.length === 0 && (
+                <p className="text-grey-500 text-sm">No apps tracked yet</p>
+              )}
+            </div>
           </Card>
         </div>
-      )}
+      </div>
     </div>
   );
 }

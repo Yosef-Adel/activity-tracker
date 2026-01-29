@@ -8,9 +8,9 @@ function App() {
   return (
     <Provider store={store}>
       <HashRouter>
-        <div className="flex min-h-screen bg-background-dark">
+        <div className="flex h-screen bg-[#09090b] overflow-hidden">
           <Sidebar />
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 overflow-y-auto">
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/activities" element={<ActivitiesPage />} />

@@ -1,20 +1,20 @@
 @import "tailwindcss";
 
 @theme {
-  /* Primary */
-  --color-primary-lighter: #C7D2FE;
-  --color-primary-light: #A5B4FC;
-  --color-primary: #6366F1;
-  --color-primary-dark: #4F46E5;
-  --color-primary-darker: #4338CA;
+  /* Primary - Purple accent like Rize */
+  --color-primary-lighter: #c4b5fd;
+  --color-primary-light: #a78bfa;
+  --color-primary: #8b5cf6;
+  --color-primary-dark: #7c3aed;
+  --color-primary-darker: #6d28d9;
   --color-primary-contrast: #FFFFFF;
 
   /* Secondary */
-  --color-secondary-lighter: #475569;
-  --color-secondary-light: #334155;
-  --color-secondary: #1E293B;
-  --color-secondary-dark: #0F172A;
-  --color-secondary-darker: #020617;
+  --color-secondary-lighter: #27273a;
+  --color-secondary-light: #1f1f2e;
+  --color-secondary: #18181b;
+  --color-secondary-dark: #111114;
+  --color-secondary-darker: #09090b;
   --color-secondary-contrast: #FFFFFF;
 
   /* Info */
@@ -26,73 +26,126 @@
   --color-info-contrast: #FFFFFF;
 
   /* Success */
-  --color-success-lighter: #BBF7D0;
-  --color-success-light: #86EFAC;
-  --color-success: #22C55E;
-  --color-success-dark: #16A34A;
-  --color-success-darker: #15803D;
+  --color-success-lighter: #bbf7d0;
+  --color-success-light: #4ade80;
+  --color-success: #22c55e;
+  --color-success-dark: #16a34a;
+  --color-success-darker: #15803d;
   --color-success-contrast: #FFFFFF;
 
   /* Warning */
-  --color-warning-lighter: #FEF08A;
-  --color-warning-light: #FDE047;
-  --color-warning: #EAB308;
-  --color-warning-dark: #CA8A04;
-  --color-warning-darker: #A16207;
-  --color-warning-contrast: #0F172A;
+  --color-warning-lighter: #fef08a;
+  --color-warning-light: #fde047;
+  --color-warning: #eab308;
+  --color-warning-dark: #ca8a04;
+  --color-warning-darker: #a16207;
+  --color-warning-contrast: #09090b;
 
   /* Error */
-  --color-error-lighter: #FECACA;
-  --color-error-light: #FCA5A5;
-  --color-error: #EF4444;
-  --color-error-dark: #DC2626;
-  --color-error-darker: #B91C1C;
+  --color-error-lighter: #fecaca;
+  --color-error-light: #f87171;
+  --color-error: #ef4444;
+  --color-error-dark: #dc2626;
+  --color-error-darker: #b91c1c;
   --color-error-contrast: #FFFFFF;
 
   /* Purple */
-  --color-purple-lighter: #E9D5FF;
-  --color-purple-light: #D8B4FE;
-  --color-purple: #A855F7;
-  --color-purple-dark: #9333EA;
-  --color-purple-darker: #7E22CE;
+  --color-purple-lighter: #e9d5ff;
+  --color-purple-light: #d8b4fe;
+  --color-purple: #a855f7;
+  --color-purple-dark: #9333ea;
+  --color-purple-darker: #7e22ce;
   --color-purple-contrast: #FFFFFF;
 
   /* Destructive */
-  --color-destructive-lighter: #FECACA;
-  --color-destructive-light: #F87171;
-  --color-destructive: #DC2626;
-  --color-destructive-dark: #B91C1C;
-  --color-destructive-darker: #7F1D1D;
+  --color-destructive-lighter: #fecaca;
+  --color-destructive-light: #f87171;
+  --color-destructive: #dc2626;
+  --color-destructive-dark: #b91c1c;
+  --color-destructive-darker: #7f1d1d;
   --color-destructive-contrast: #FFFFFF;
 
-  /* Grey */
-  --color-grey-50: #F8FAFC;
-  --color-grey-100: #F1F5F9;
-  --color-grey-200: #E2E8F0;
-  --color-grey-300: #CBD5E1;
-  --color-grey-400: #94A3B8;
-  --color-grey-500: #64748B;
-  --color-grey-600: #475569;
-  --color-grey-700: #334155;
-  --color-grey-800: #1E293B;
-  --color-grey-900: #0F172A;
+  /* Zinc/Grey - Rize style */
+  --color-grey-50: #fafafa;
+  --color-grey-100: #f4f4f5;
+  --color-grey-200: #e4e4e7;
+  --color-grey-300: #d4d4d8;
+  --color-grey-400: #a1a1aa;
+  --color-grey-500: #71717a;
+  --color-grey-600: #52525b;
+  --color-grey-700: #3f3f46;
+  --color-grey-800: #27272a;
+  --color-grey-900: #18181b;
 
-  /* Background */
+  /* Background - Dark theme like Rize */
   --color-background-light: #FFFFFF;
-  --color-background-dark: #0A0E1E;
-  --color-background-card: #1A1F35;
-  --color-background-card-blue: #1E3A5F;
-  --color-background-card-green: #1E4D3D;
-  --color-background-card-brown: #5D4037;
-  --color-background-muted: #1E293B;
-  --color-background-accent: #6366F1;
+  --color-background-dark: #09090b;
+  --color-background-card: rgba(24, 24, 27, 0.8);
+  --color-background-card-hover: rgba(39, 39, 42, 0.8);
+  --color-background-card-elevated: rgba(39, 39, 42, 0.6);
+  --color-background-muted: #18181b;
+  --color-background-accent: #8b5cf6;
+  --color-background-sidebar: #0c0c0e;
+
+  /* Border */
+  --color-border: rgba(255, 255, 255, 0.06);
+  --color-border-light: rgba(255, 255, 255, 0.1);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #27272a #09090b;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #09090b;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border-radius: 3px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
 }
 
 body {
   font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
     sans-serif;
   background-color: var(--color-background-dark);
-  color: white;
+  color: #fafafa;
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Glassmorphism card effect */
+.glass-card {
+  background: linear-gradient(
+    135deg,
+    rgba(24, 24, 27, 0.9) 0%,
+    rgba(24, 24, 27, 0.7) 100%
+  );
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Subtle glow effect */
+.glow-purple {
+  box-shadow: 0 0 60px rgba(139, 92, 246, 0.15);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 50%, #7c3aed 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
