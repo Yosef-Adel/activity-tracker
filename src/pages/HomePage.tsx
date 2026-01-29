@@ -75,15 +75,8 @@ export function HomePage() {
       dispatch(fetchDashboardData({ start: dateRange.start, end: Date.now() }));
     });
 
-    // Also set up periodic refresh every 10 seconds for live updates
-    const refreshInterval = setInterval(() => {
-      dispatch(fetchTrackerStatus()); // Check for idle state changes
-      dispatch(fetchDashboardData({ start: dateRange.start, end: Date.now() }));
-    }, 10000);
-
     return () => {
       unsubscribe();
-      clearInterval(refreshInterval);
     };
   }, [dispatch, dateRange.start]);
 

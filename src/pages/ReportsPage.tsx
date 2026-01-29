@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Card } from "../components";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
-import { fetchDashboardData, setDateRangeWeek, setDateRangeMonth } from "../store/slices";
+import { fetchDashboardData, setDateRangeWeek, setDateRangeMonth, setCurrentActivity } from "../store/slices";
 import { formatDuration, getPercentage } from "../utils/time";
 import type { DailyTotal } from "../types/electron";
 
@@ -30,6 +30,17 @@ export function ReportsPage() {
   useEffect(() => {
     dispatch(fetchDashboardData({ start: dateRange.start, end: dateRange.end }));
     window.electronAPI.getDailyTotals(30).then(setDailyTotals);
+
+    // Listen for activity changes and refresh data
+    const unsubscribe = window.electronAPI.onActivityChanged((activity) => {
+      dispatch(setCurrentActivity(activity));
+      dispatch(fetchDashboardData({ start: dateRange.start, end: Date.now() }));
+      window.electronAPI.getDailyTotals(30).then(setDailyTotals);
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, [dispatch, dateRange]);
 
   return (

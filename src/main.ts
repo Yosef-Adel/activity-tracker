@@ -47,57 +47,74 @@ async function initializeTracker() {
   await tracker.start();
 }
 
-// IPC Handlers
+// IPC Handlers - expose tracker data to the renderer process
+
+// For displaying tracker state (running/paused) and current activity in the UI
 ipcMain.handle("tracker:getStatus", () => {
   return tracker?.getStatus() || null;
 });
 
+// For showing time spent per application (e.g., "VS Code: 2h, Chrome: 1h")
 ipcMain.handle("tracker:getAppUsage", (_event, startTime: number, endTime: number) => {
   return tracker?.getDatabase().getAppUsage(startTime, endTime) || [];
 });
 
+// For pie charts showing time distribution by category (development, social, etc.)
 ipcMain.handle("tracker:getCategoryBreakdown", (_event, startTime: number, endTime: number) => {
   return tracker?.getDatabase().getCategoryBreakdown(startTime, endTime) || [];
 });
 
+// For showing time spent on detected projects (VS Code workspaces, GitHub repos)
 ipcMain.handle("tracker:getProjectTime", (_event, startTime: number, endTime: number) => {
   return tracker?.getDatabase().getProjectTime(startTime, endTime) || [];
 });
 
+// For showing time spent per website domain (github.com, stackoverflow.com, etc.)
 ipcMain.handle("tracker:getDomainUsage", (_event, startTime: number, endTime: number) => {
   return tracker?.getDatabase().getDomainUsage(startTime, endTime) || [];
 });
 
+// For heatmaps showing which hours of the day are most productive
 ipcMain.handle("tracker:getHourlyPattern", (_event, startTime: number, endTime: number) => {
   return tracker?.getDatabase().getHourlyPattern(startTime, endTime) || [];
 });
 
+// For bar charts showing daily totals over time (trends page)
 ipcMain.handle("tracker:getDailyTotals", (_event, days: number) => {
   return tracker?.getDatabase().getDailyTotals(days) || [];
 });
 
+// For displaying "Total time today: X hours" summary
 ipcMain.handle("tracker:getTotalTime", (_event, startTime: number, endTime: number) => {
   return tracker?.getDatabase().getTotalTrackedTime(startTime, endTime) || 0;
 });
 
+// For the activities list/table showing individual activity records
 ipcMain.handle("tracker:getActivities", (_event, startTime: number, endTime: number) => {
   return tracker?.getDatabase().getActivitiesInRange(startTime, endTime) || [];
 });
 
+// For session-based view grouping activities into work sessions
 ipcMain.handle("tracker:getSessions", (_event, startTime: number, endTime: number) => {
   return tracker?.getDatabase().getSessionsWithActivities(startTime, endTime) || [];
 });
 
+// For consistent category colors across all charts
 ipcMain.handle("tracker:getCategoryColor", (_event, category: string) => {
   return tracker?.getCategorizer().getCategoryColor(category as never) || "#64748B";
 });
 
+// For populating category filter dropdowns
 ipcMain.handle("tracker:getAllCategories", () => {
   return tracker?.getCategorizer().getAllCategories() || [];
 });
 
+// App lifecycle events
+
+// Create the main window when Electron is ready
 app.on("ready", createWindow);
 
+// Cleanup tracker and quit when all windows are closed (except macOS which keeps apps in dock)
 app.on("window-all-closed", () => {
   if (tracker) {
     tracker.shutdown();
@@ -107,12 +124,14 @@ app.on("window-all-closed", () => {
   }
 });
 
+// macOS: re-create window when clicking dock icon with no windows open
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }
 });
 
+// Final cleanup before app exits to flush pending database writes
 app.on("before-quit", () => {
   if (tracker) {
     tracker.shutdown();
