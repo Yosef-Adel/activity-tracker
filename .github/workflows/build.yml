@@ -55,6 +55,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Install node-addon-api globally for native module rebuilds
+      - name: Install node-addon-api globally
+        run: npm install -g node-addon-api
+
       # Build for specific architecture
       - name: Build (make)
         run: npm run make -- --arch=${{ matrix.arch }}
