@@ -3,17 +3,42 @@ import { MakerSquirrel } from '@electron-forge/maker-squirrel';
 import { MakerZIP } from '@electron-forge/maker-zip';
 import { MakerDeb } from '@electron-forge/maker-deb';
 import { MakerRpm } from '@electron-forge/maker-rpm';
-import { AutoUnpackNativesPlugin } from '@electron-forge/plugin-auto-unpack-natives';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
 
+const nativeModules = [
+  'get-windows',
+  'better-sqlite3',
+  'bindings',
+  'file-uri-to-path',
+  'node-addon-api',
+];
+
 const config: ForgeConfig = {
+  hooks: {
+    packageAfterCopy: async (_config, buildPath) => {
+      const path = await import('path');
+      const fs = await import('fs/promises');
+      const nodeModulesSrc = path.join(process.cwd(), 'node_modules');
+      const nodeModulesDest = path.join(buildPath, 'node_modules');
+
+      await fs.mkdir(nodeModulesDest, { recursive: true });
+
+      for (const mod of nativeModules) {
+        const src = path.join(nodeModulesSrc, mod);
+        const dest = path.join(nodeModulesDest, mod);
+        try {
+          await fs.cp(src, dest, { recursive: true });
+        } catch (e) {
+          console.warn(`Could not copy ${mod}:`, e);
+        }
+      }
+    },
+  },
   packagerConfig: {
     appBundleId: 'com.activity-tracker.app',
-    asar: {
-      unpack: '**/node_modules/{better-sqlite3,get-windows,bindings,file-uri-to-path,node-addon-api}/**/*',
-    },
+    asar: false,
     extendInfo: {
       NSScreenCaptureUsageDescription:
         'Activity Tracker needs Screen Recording permission to track which applications and windows you are using.',
@@ -29,7 +54,6 @@ const config: ForgeConfig = {
     new MakerDeb({}),
   ],
   plugins: [
-    new AutoUnpackNativesPlugin({}),
     new VitePlugin({
       build: [
         {
