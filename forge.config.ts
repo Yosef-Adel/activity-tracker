@@ -12,7 +12,7 @@ const config: ForgeConfig = {
   packagerConfig: {
     appBundleId: 'com.activity-tracker.app',
     asar: {
-      unpack: '**/{better-sqlite3,get-windows,@mapbox/node-pre-gyp}/**/*',
+      unpack: '**/{better-sqlite3,get-windows,@mapbox,bindings,file-uri-to-path,node-addon-api,detect-libc,make-dir,nopt,npmlog,rimraf,semver,tar,minipass,minizlib,mkdirp,fs-minipass,chownr,yallist,abbrev,are-we-there-yet,console-control-strings,delegates,gauge,has-unicode,set-blocking,wide-align,string-width,strip-ansi,ansi-regex,emoji-regex,is-fullwidth-code-point,aproba,color-support,signal-exit,glob,inflight,inherits,once,wrappy,path-is-absolute,brace-expansion,balanced-match,concat-map}/**/*',
     },
     extendInfo: {
       NSScreenCaptureUsageDescription:
@@ -28,7 +28,52 @@ const config: ForgeConfig = {
       const nodeModulesSrc = path.join(process.cwd(), 'node_modules');
       const nodeModulesDest = path.join(buildPath, 'node_modules');
 
-      const modulesToCopy = ['get-windows', 'better-sqlite3', '@mapbox'];
+      const modulesToCopy = [
+        'get-windows',
+        'better-sqlite3',
+        '@mapbox',
+        'bindings',
+        'file-uri-to-path',
+        'node-addon-api',
+        'detect-libc',
+        'make-dir',
+        'nopt',
+        'npmlog',
+        'rimraf',
+        'semver',
+        'tar',
+        'minipass',
+        'minizlib',
+        'mkdirp',
+        'fs-minipass',
+        'chownr',
+        'yallist',
+        'abbrev',
+        'are-we-there-yet',
+        'console-control-strings',
+        'delegates',
+        'gauge',
+        'has-unicode',
+        'set-blocking',
+        'wide-align',
+        'string-width',
+        'strip-ansi',
+        'ansi-regex',
+        'emoji-regex',
+        'is-fullwidth-code-point',
+        'aproba',
+        'color-support',
+        'signal-exit',
+        'glob',
+        'inflight',
+        'inherits',
+        'once',
+        'wrappy',
+        'path-is-absolute',
+        'brace-expansion',
+        'balanced-match',
+        'concat-map',
+      ];
 
       await fs.mkdir(nodeModulesDest, { recursive: true });
 
@@ -82,7 +127,7 @@ const config: ForgeConfig = {
       [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
       [FuseV1Options.EnableNodeCliInspectArguments]: false,
       [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,
-      [FuseV1Options.OnlyLoadAppFromAsar]: true,
+      [FuseV1Options.OnlyLoadAppFromAsar]: false,
     }),
   ],
 };
