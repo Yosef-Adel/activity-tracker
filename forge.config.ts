@@ -3,13 +3,41 @@ import { MakerSquirrel } from '@electron-forge/maker-squirrel';
 import { MakerZIP } from '@electron-forge/maker-zip';
 import { MakerDeb } from '@electron-forge/maker-deb';
 import { MakerRpm } from '@electron-forge/maker-rpm';
+import { AutoUnpackNativesPlugin } from '@electron-forge/plugin-auto-unpack-natives';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
 
 const config: ForgeConfig = {
   packagerConfig: {
-    asar: true,
+    appBundleId: 'com.activity-tracker.app',
+    asar: {
+      unpack: '**/{better-sqlite3,get-windows}/**/*',
+    },
+    extendInfo: {
+      NSScreenCaptureUsageDescription:
+        'Activity Tracker needs Screen Recording permission to track which applications and windows you are using.',
+      NSAppleEventsUsageDescription:
+        'Activity Tracker needs Accessibility permission to detect active windows and track your activity.',
+    },
+  },
+  hooks: {
+    packageAfterCopy: async (_config, buildPath) => {
+      const path = await import('path');
+      const fs = await import('fs/promises');
+      const nodeModulesSrc = path.join(process.cwd(), 'node_modules');
+      const nodeModulesDest = path.join(buildPath, 'node_modules');
+
+      const modulesToCopy = ['get-windows', 'better-sqlite3'];
+
+      await fs.mkdir(nodeModulesDest, { recursive: true });
+
+      for (const mod of modulesToCopy) {
+        const src = path.join(nodeModulesSrc, mod);
+        const dest = path.join(nodeModulesDest, mod);
+        await fs.cp(src, dest, { recursive: true });
+      }
+    },
   },
   rebuildConfig: {},
   makers: [
@@ -19,6 +47,7 @@ const config: ForgeConfig = {
     new MakerDeb({}),
   ],
   plugins: [
+    new AutoUnpackNativesPlugin({}),
     new VitePlugin({
       // `build` can specify multiple entry builds, which can be Main process, Preload scripts, Worker process, etc.
       // If you are familiar with Vite configuration, it will look really familiar.

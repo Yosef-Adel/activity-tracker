@@ -17,20 +17,15 @@ class PlatformTracker {
   }
 
   private checkSupport(): boolean {
-    // get-windows works on all platforms except Wayland
     if (this.platform === "linux") {
       const isWayland =
         process.env.WAYLAND_DISPLAY ||
         process.env.XDG_SESSION_TYPE === "wayland";
 
       if (isWayland) {
-        console.warn(
-          "⚠️  Wayland detected. Window tracking not supported for security reasons.",
-        );
         return false;
       }
     }
-
     return true;
   }
 
@@ -43,7 +38,6 @@ class PlatformTracker {
       const window = await activeWindow();
       return window ?? null;
     } catch (error) {
-      console.error("Error getting active window:", error);
       return null;
     }
   }
@@ -58,14 +52,12 @@ class PlatformTracker {
 
   private getSupportMessage(): string {
     if (this.isSupported) {
-      return `✓ Window tracking supported on ${this.getPlatformName()}`;
+      return `Window tracking supported on ${this.getPlatformName()}`;
     }
-
     if (this.platform === "linux") {
-      return "✗ Wayland detected. Please switch to X11 for window tracking.";
+      return "Wayland detected. Please switch to X11 for window tracking.";
     }
-
-    return `✗ Window tracking not supported on ${this.getPlatformName()}`;
+    return `Window tracking not supported on ${this.getPlatformName()}`;
   }
 
   private getPlatformName(): string {

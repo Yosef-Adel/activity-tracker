@@ -52,16 +52,12 @@ class TimeTracker {
 
   async start(): Promise<boolean> {
     const platformInfo = this.platformTracker.getPlatformInfo();
-    console.log("\n🕐 Time Tracker Starting...");
-    console.log(platformInfo.message);
 
     if (!platformInfo.isSupported) {
-      console.log("\n⚠️  Automatic tracking is not available on this system.");
       return false;
     }
 
     this.isRunning = true;
-    console.log("\n✓ Automatic time tracking started.\n");
 
     this.trackingInterval = setInterval(async () => {
       await this.track();
