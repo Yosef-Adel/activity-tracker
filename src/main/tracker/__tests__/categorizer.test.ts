@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "../../db/schema";
-import { categories, categoryRules, activities, sessions } from "../../db/schema";
+import { categories, categoryRules, activities } from "../../db/schema";
 
 // Create an in-memory DB for testing
 function createTestDb() {
@@ -947,7 +947,7 @@ describe("ActivityCategorizer", () => {
     it("higher priority category wins when both have matching keywords", () => {
       // Create two custom categories with overlapping keywords but different priorities
       testDb = createTestDb();
-      const lowId = seedCategory("low-priority", "#111111", {
+      seedCategory("low-priority", "#111111", {
         keywords: ["overlap"],
       }, 1);
       const highId = seedCategory("high-priority", "#222222", {

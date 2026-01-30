@@ -5,7 +5,6 @@ import ContextExtractor from "./contextExtractor";
 import ActivityDatabase from "./database";
 import type { ExtractedContext } from "./contextExtractor";
 
-
 export interface CurrentActivity {
   appName: string;
   title: string;
@@ -50,7 +49,9 @@ class TimeTracker {
     this.db = new ActivityDatabase();
   }
 
-  setOnActivityChange(callback: (activity: CurrentActivity | null) => void): void {
+  setOnActivityChange(
+    callback: (activity: CurrentActivity | null) => void,
+  ): void {
     this.onActivityChange = callback;
   }
 
@@ -123,7 +124,11 @@ class TimeTracker {
     const appName = window.owner.name;
 
     // Skip tracking the app itself — save current activity and notify frontend
-    if (appName === "Electron" || appName === "Activity Tracker" || appName === "activity-tracker") {
+    if (
+      appName === "Electron" ||
+      appName === "Activity Tracker" ||
+      appName === "activity-tracker"
+    ) {
       if (this.currentActivity) {
         this.saveCurrentActivity();
         this.currentActivity = null;
@@ -136,7 +141,7 @@ class TimeTracker {
     }
 
     const title = window.title;
-    const url = window.url || null;
+    const url = ("url" in window ? window.url : null) || null;
 
     const context = this.contextExtractor.extract(appName, title, url);
     const categoryId = this.categorizer.categorize({ appName, title, url });

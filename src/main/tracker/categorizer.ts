@@ -52,7 +52,12 @@ class ActivityCategorizer {
     // Group rules by category ID
     const rulesByCategory = new Map<
       number,
-      { apps: CachedRule[]; domains: CachedRule[]; keywords: CachedRule[]; domainKeywords: CachedRule[] }
+      {
+        apps: CachedRule[];
+        domains: CachedRule[];
+        keywords: CachedRule[];
+        domainKeywords: CachedRule[];
+      }
     >();
     for (const rule of allRules) {
       if (!rulesByCategory.has(rule.categoryId)) {
@@ -63,6 +68,7 @@ class ActivityCategorizer {
           domainKeywords: [],
         });
       }
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const bucket = rulesByCategory.get(rule.categoryId)!;
       const matchMode = (rule.matchMode as MatchMode) || "contains";
       const cachedRule: CachedRule = { pattern: rule.pattern, matchMode };
@@ -80,7 +86,8 @@ class ActivityCategorizer {
       if (rule.type === "app") bucket.apps.push(cachedRule);
       else if (rule.type === "domain") bucket.domains.push(cachedRule);
       else if (rule.type === "keyword") bucket.keywords.push(cachedRule);
-      else if (rule.type === "domain_keyword") bucket.domainKeywords.push(cachedRule);
+      else if (rule.type === "domain_keyword")
+        bucket.domainKeywords.push(cachedRule);
     }
 
     this.categoryCache = allCategories.map((cat) => {
@@ -164,7 +171,13 @@ class ActivityCategorizer {
       if (cat.name === "uncategorized") continue;
       if (cat.domains.length > 0 && hostname) {
         for (const rule of cat.domains) {
-          if (this.matchesDomain(hostname, rule.pattern.toLowerCase(), rule.matchMode)) {
+          if (
+            this.matchesDomain(
+              hostname,
+              rule.pattern.toLowerCase(),
+              rule.matchMode,
+            )
+          ) {
             return cat.id;
           }
         }
@@ -202,7 +215,11 @@ class ActivityCategorizer {
     });
   }
 
-  private matchesDomain(hostname: string, pattern: string, matchMode: MatchMode): boolean {
+  private matchesDomain(
+    hostname: string,
+    pattern: string,
+    matchMode: MatchMode,
+  ): boolean {
     switch (matchMode) {
       case "exact":
         return hostname === pattern || hostname.endsWith("." + pattern);
@@ -256,7 +273,10 @@ class ActivityCategorizer {
     return result.id;
   }
 
-  updateCategory(id: number, updates: { name?: string; color?: string; priority?: number }): void {
+  updateCategory(
+    id: number,
+    updates: { name?: string; color?: string; priority?: number },
+  ): void {
     const db = getDb();
     const setValues: Record<string, string | number> = {};
     if (updates.name !== undefined) setValues.name = updates.name;
@@ -284,7 +304,12 @@ class ActivityCategorizer {
     this.loadFromDb();
   }
 
-  addRule(categoryId: number, type: string, pattern: string, matchMode: string = "contains"): number {
+  addRule(
+    categoryId: number,
+    type: string,
+    pattern: string,
+    matchMode = "contains",
+  ): number {
     const db = getDb();
     const result = db
       .insert(categoryRules)

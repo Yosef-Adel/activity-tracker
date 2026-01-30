@@ -44,7 +44,6 @@ export function HomePage() {
     projectTime,
     totalTime,
     dateRange,
-    activities,
     sessions,
   } = useAppSelector((state) => state.tracking);
 
