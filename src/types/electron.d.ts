@@ -108,6 +108,13 @@ export interface CategoryRule {
   pattern: string;
 }
 
+export interface PermissionsStatus {
+  platform: "darwin" | "other";
+  accessibility: boolean;
+  screenRecording: boolean;
+  needsOnboarding: boolean;
+}
+
 export interface UpdateStatus {
   state:
     | "checking"
@@ -158,6 +165,14 @@ export interface ElectronAPI {
 
   // Activity change listener
   onActivityChanged: (callback: (activity: CurrentActivity | null) => void) => () => void;
+
+  // Permissions
+  permissions: {
+    getStatus(): Promise<PermissionsStatus>;
+    requestAccessibility(): Promise<boolean>;
+    openScreenRecordingPrefs(): Promise<void>;
+    startTracker(): Promise<void>;
+  };
 
   // Updater
   updater: {

@@ -110,6 +110,13 @@ export interface CategoryRule {
   pattern: string;
 }
 
+export interface PermissionsStatus {
+  platform: "darwin" | "other";
+  accessibility: boolean;
+  screenRecording: boolean;
+  needsOnboarding: boolean;
+}
+
 export interface UpdateStatus {
   state:
     | "checking"
@@ -208,6 +215,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return () => {
       ipcRenderer.removeListener("activity-changed", subscription);
     };
+  },
+
+  // Permissions
+  permissions: {
+    getStatus: (): Promise<PermissionsStatus> =>
+      ipcRenderer.invoke("permissions:getStatus"),
+    requestAccessibility: (): Promise<boolean> =>
+      ipcRenderer.invoke("permissions:requestAccess"),
+    openScreenRecordingPrefs: (): Promise<void> =>
+      ipcRenderer.invoke("permissions:openScreenPrefs"),
+    startTracker: (): Promise<void> =>
+      ipcRenderer.invoke("permissions:startTracker"),
   },
 
   // Updater

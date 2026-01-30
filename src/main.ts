@@ -4,6 +4,11 @@ import started from "electron-squirrel-startup";
 import { TimeTracker } from "./main/tracker";
 import { initLogger, log } from "./main/logger";
 import {
+  getPermissionsStatus,
+  requestAccessibility,
+  openScreenRecordingPrefs,
+} from "./main/permissions";
+import {
   initAutoUpdater,
   checkForUpdates,
   downloadUpdate,
@@ -127,8 +132,13 @@ const createWindow = () => {
     }
   });
 
-  // Initialize time tracker
-  initializeTracker();
+  // Initialize time tracker only if permissions are OK
+  const permStatus = getPermissionsStatus();
+  if (!permStatus.needsOnboarding) {
+    initializeTracker();
+  } else {
+    log.info("Permissions not granted — waiting for onboarding");
+  }
 
   // Create system tray
   createTray();
@@ -276,6 +286,24 @@ ipcMain.handle("tracker:removeCategoryRule", (_event, ruleId: number) => {
 
 ipcMain.handle("tracker:reloadCategories", () => {
   tracker?.reloadCategories();
+});
+
+// Permissions IPC handlers
+ipcMain.handle("permissions:getStatus", () => {
+  return getPermissionsStatus();
+});
+
+ipcMain.handle("permissions:requestAccess", () => {
+  return requestAccessibility();
+});
+
+ipcMain.handle("permissions:openScreenPrefs", () => {
+  openScreenRecordingPrefs();
+});
+
+ipcMain.handle("permissions:startTracker", async () => {
+  if (tracker) return;
+  await initializeTracker();
 });
 
 // Updater IPC handlers
