@@ -7,7 +7,7 @@ import { AutoUnpackNativesPlugin } from '@electron-forge/plugin-auto-unpack-nati
 import { VitePlugin } from '@electron-forge/plugin-vite';
 
 // External native modules that Vite doesn't bundle
-const externalModules = ['get-windows', 'better-sqlite3'];
+const externalModules = ['get-windows', 'better-sqlite3', 'electron-updater', 'electron-log'];
 
 const config: ForgeConfig = {
   hooks: {

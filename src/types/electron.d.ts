@@ -108,6 +108,19 @@ export interface CategoryRule {
   pattern: string;
 }
 
+export interface UpdateStatus {
+  state:
+    | "checking"
+    | "available"
+    | "not-available"
+    | "downloading"
+    | "downloaded"
+    | "error";
+  version?: string;
+  percent?: number;
+  error?: string;
+}
+
 export interface ElectronAPI {
   // Tracker status
   getTrackerStatus: () => Promise<TrackerStatus | null>;
@@ -145,6 +158,20 @@ export interface ElectronAPI {
 
   // Activity change listener
   onActivityChanged: (callback: (activity: CurrentActivity | null) => void) => () => void;
+
+  // Updater
+  updater: {
+    checkForUpdates(): Promise<void>;
+    downloadUpdate(): Promise<void>;
+    installUpdate(): Promise<void>;
+    getVersion(): Promise<string>;
+    onUpdateStatus(callback: (status: UpdateStatus) => void): () => void;
+  };
+
+  // Logger
+  logger: {
+    getLogPath(): Promise<string | null>;
+  };
 }
 
 declare global {

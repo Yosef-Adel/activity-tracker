@@ -110,6 +110,19 @@ export interface CategoryRule {
   pattern: string;
 }
 
+export interface UpdateStatus {
+  state:
+    | "checking"
+    | "available"
+    | "not-available"
+    | "downloading"
+    | "downloaded"
+    | "error";
+  version?: string;
+  percent?: number;
+  error?: string;
+}
+
 contextBridge.exposeInMainWorld("electronAPI", {
   // Tracker status
   getTrackerStatus: (): Promise<TrackerStatus | null> =>
@@ -195,5 +208,35 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return () => {
       ipcRenderer.removeListener("activity-changed", subscription);
     };
+  },
+
+  // Updater
+  updater: {
+    checkForUpdates: (): Promise<void> =>
+      ipcRenderer.invoke("updater:checkForUpdates"),
+    downloadUpdate: (): Promise<void> =>
+      ipcRenderer.invoke("updater:downloadUpdate"),
+    installUpdate: (): Promise<void> =>
+      ipcRenderer.invoke("updater:installUpdate"),
+    getVersion: (): Promise<string> =>
+      ipcRenderer.invoke("updater:getVersion"),
+    onUpdateStatus: (callback: (status: UpdateStatus) => void) => {
+      const subscription = (
+        _event: Electron.IpcRendererEvent,
+        status: UpdateStatus,
+      ) => {
+        callback(status);
+      };
+      ipcRenderer.on("update-status", subscription);
+      return () => {
+        ipcRenderer.removeListener("update-status", subscription);
+      };
+    },
+  },
+
+  // Logger
+  logger: {
+    getLogPath: (): Promise<string | null> =>
+      ipcRenderer.invoke("logger:getLogPath"),
   },
 });

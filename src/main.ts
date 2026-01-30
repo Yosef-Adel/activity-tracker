@@ -2,6 +2,16 @@ import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } from "electron";
 import path from "node:path";
 import started from "electron-squirrel-startup";
 import { TimeTracker } from "./main/tracker";
+import { initLogger, log } from "./main/logger";
+import {
+  initAutoUpdater,
+  checkForUpdates,
+  downloadUpdate,
+  installUpdate,
+} from "./main/updater";
+
+// Initialize logging before anything else
+initLogger();
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -122,6 +132,15 @@ const createWindow = () => {
 
   // Create system tray
   createTray();
+
+  // Initialize auto-updater (only in packaged builds)
+  if (app.isPackaged) {
+    initAutoUpdater((status) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("update-status", status);
+      }
+    });
+  }
 };
 
 async function initializeTracker() {
@@ -143,7 +162,12 @@ async function initializeTracker() {
     }
   });
 
-  await tracker.start();
+  try {
+    await tracker.start();
+    log.info("Tracker started successfully");
+  } catch (err) {
+    log.error("Failed to start tracker:", err);
+  }
 }
 
 // IPC Handlers - expose tracker data to the renderer process
@@ -252,6 +276,18 @@ ipcMain.handle("tracker:removeCategoryRule", (_event, ruleId: number) => {
 
 ipcMain.handle("tracker:reloadCategories", () => {
   tracker?.reloadCategories();
+});
+
+// Updater IPC handlers
+ipcMain.handle("updater:checkForUpdates", () => checkForUpdates());
+ipcMain.handle("updater:downloadUpdate", () => downloadUpdate());
+ipcMain.handle("updater:installUpdate", () => installUpdate());
+ipcMain.handle("updater:getVersion", () => app.getVersion());
+
+// Logger IPC handlers
+ipcMain.handle("logger:getLogPath", () => {
+  const file = log.transports.file.getFile();
+  return file?.path ?? null;
 });
 
 // App lifecycle events
