@@ -247,6 +247,14 @@ class TimeTracker {
     // Only save if duration is at least 1 second
     if (duration < 1000) return;
 
+    // Short activities (< 30s) get absorbed into the previous activity
+    // instead of creating a new entry (reduces noise from quick app switches)
+    if (duration < 30_000) {
+      const extended = this.db.extendLastActivity(endTime, duration);
+      if (extended) return;
+      // If no previous activity to extend, fall through and save normally
+    }
+
     const ctx = this.currentActivity.context;
 
     this.db.insertActivity({

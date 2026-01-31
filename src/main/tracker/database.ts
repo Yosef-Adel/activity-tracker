@@ -42,6 +42,8 @@ export interface SessionWithActivities extends SessionRecord {
   activities: ActivityRecord[];
 }
 
+const SESSION_MERGE_GAP_MS = 120_000; // 2 minutes
+
 class ActivityDatabase {
   private db = getDb();
   private currentSessionId: number | null = null;
@@ -89,6 +91,13 @@ class ActivityDatabase {
 
     // Create a new session
     const sessionId = this.createSession(appName, categoryId, startTime);
+
+    // Try to merge with a recent session of the same category
+    const mergedId = this.mergeWithPreviousSession(sessionId, categoryId, startTime);
+    if (mergedId !== sessionId) {
+      return mergedId;
+    }
+
     this.currentSessionId = sessionId;
     this.currentSessionAppName = appName;
     return sessionId;
@@ -98,6 +107,81 @@ class ActivityDatabase {
   closeCurrentSession(): void {
     this.currentSessionId = null;
     this.currentSessionAppName = null;
+  }
+
+  // Extend the most recent activity's end_time instead of creating a new one
+  // Used for sub-30s activities that should be absorbed into the previous entry
+  extendLastActivity(endTime: number, duration: number): boolean {
+    // Find the most recent activity
+    const lastActivity = this.db
+      .select({ id: activities.id, sessionId: activities.sessionId })
+      .from(activities)
+      .orderBy(desc(activities.endTime))
+      .limit(1)
+      .get();
+
+    if (!lastActivity) return false;
+
+    // Extend the activity
+    this.db
+      .update(activities)
+      .set({
+        endTime,
+        duration: sql`${activities.duration} + ${duration}`,
+      })
+      .where(eq(activities.id, lastActivity.id))
+      .run();
+
+    // Extend the parent session
+    if (lastActivity.sessionId) {
+      this.db
+        .update(sessions)
+        .set({
+          endTime,
+          totalDuration: sql`${sessions.totalDuration} + ${duration}`,
+        })
+        .where(eq(sessions.id, lastActivity.sessionId))
+        .run();
+    }
+
+    return true;
+  }
+
+  // Try to merge a newly created session with a recent session of the same category
+  // Returns the merged session ID if merged, or the original sessionId if not
+  private mergeWithPreviousSession(sessionId: number, categoryId: number, startTime: number): number {
+    // Find the most recent session before this one with the same category
+    const prevSession = this.db
+      .select({
+        id: sessions.id,
+        categoryId: sessions.categoryId,
+        endTime: sessions.endTime,
+        appName: sessions.appName,
+      })
+      .from(sessions)
+      .where(
+        and(
+          sql`${sessions.id} != ${sessionId}`,
+          eq(sessions.categoryId, categoryId),
+        )
+      )
+      .orderBy(desc(sessions.endTime))
+      .limit(1)
+      .get();
+
+    if (!prevSession) return sessionId;
+
+    // Check if the gap is small enough to merge
+    const gap = startTime - prevSession.endTime;
+    if (gap > SESSION_MERGE_GAP_MS || gap < 0) return sessionId;
+
+    // Merge: delete the new empty session and reuse the previous one
+    this.db.delete(sessions).where(eq(sessions.id, sessionId)).run();
+
+    this.currentSessionId = prevSession.id;
+    this.currentSessionAppName = prevSession.appName;
+
+    return prevSession.id;
   }
 
   // Insert a new activity (with session tracking)
