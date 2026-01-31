@@ -1,4 +1,4 @@
-import { gte, lte, and, sql, desc, isNotNull, eq } from "drizzle-orm";
+import { gte, lte, and, sql, desc, isNotNull, eq, like, inArray } from "drizzle-orm";
 import { getDb, activities, sessions, categories, type Activity, type Session } from "../db";
 
 // Re-export types for external use
@@ -517,6 +517,67 @@ class ActivityDatabase {
       .set({ categoryId })
       .where(eq(sessions.id, sessionId))
       .run();
+  }
+
+  // Recategorize all sessions/activities matching a rule pattern
+  recategorizeByRule(ruleType: string, pattern: string, categoryId: number): number {
+    let matchingSessionIds: number[] = [];
+
+    if (ruleType === "domain") {
+      // Find all sessions that have activities with this domain
+      const rows = this.db
+        .selectDistinct({ sessionId: activities.sessionId })
+        .from(activities)
+        .where(eq(activities.domain, pattern))
+        .all();
+      matchingSessionIds = rows.filter((r) => r.sessionId !== null).map((r) => r.sessionId as number);
+    } else if (ruleType === "app") {
+      const rows = this.db
+        .selectDistinct({ id: sessions.id })
+        .from(sessions)
+        .where(eq(sessions.appName, pattern))
+        .all();
+      matchingSessionIds = rows.map((r) => r.id);
+    } else if (ruleType === "domain_keyword") {
+      const [domain, ...keywordParts] = pattern.split("|");
+      const keyword = keywordParts.join("|");
+      const rows = this.db
+        .selectDistinct({ sessionId: activities.sessionId })
+        .from(activities)
+        .where(
+          and(
+            eq(activities.domain, domain),
+            like(activities.windowTitle, `%${keyword}%`),
+          ),
+        )
+        .all();
+      matchingSessionIds = rows.filter((r) => r.sessionId !== null).map((r) => r.sessionId as number);
+    } else if (ruleType === "keyword") {
+      const rows = this.db
+        .selectDistinct({ sessionId: activities.sessionId })
+        .from(activities)
+        .where(like(activities.windowTitle, `%${pattern}%`))
+        .all();
+      matchingSessionIds = rows.filter((r) => r.sessionId !== null).map((r) => r.sessionId as number);
+    }
+
+    if (matchingSessionIds.length === 0) return 0;
+
+    // Update all matching activities
+    this.db
+      .update(activities)
+      .set({ categoryId })
+      .where(inArray(activities.sessionId, matchingSessionIds))
+      .run();
+
+    // Update all matching sessions
+    this.db
+      .update(sessions)
+      .set({ categoryId })
+      .where(inArray(sessions.id, matchingSessionIds))
+      .run();
+
+    return matchingSessionIds.length;
   }
 
   // Close is not needed with Drizzle, but keep for API compatibility

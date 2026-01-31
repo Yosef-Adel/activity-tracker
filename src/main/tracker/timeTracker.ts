@@ -127,12 +127,30 @@ class TimeTracker {
 
     const appName = window.owner.name;
 
-    // Skip tracking the app itself — save current activity and notify frontend
-    if (
-      appName === "Electron" ||
-      appName === "Activity Tracker" ||
-      appName === "activity-tracker"
-    ) {
+    // System/lock screen apps that mean the user is away — treat as idle
+    const IDLE_APPS = ["loginwindow", "ScreenSaverEngine"];
+    if (IDLE_APPS.includes(appName)) {
+      if (!this.isIdle) {
+        console.log(`Lock screen detected (${appName}), treating as idle...`);
+        this.isIdle = true;
+        this.saveCurrentActivity();
+        this.db.closeCurrentSession();
+        this.currentActivity = null;
+        this.activityStartTime = null;
+        if (this.onActivityChange) {
+          this.onActivityChange(null);
+        }
+      }
+      return;
+    }
+
+    // Skip tracking the app itself and system UI processes
+    const EXCLUDED_APPS = [
+      "Electron", "Activity Tracker", "activity-tracker",
+      "Dock", "SystemUIServer", "Control Center",
+      "Notification Center", "UserNotificationCenter",
+    ];
+    if (EXCLUDED_APPS.includes(appName)) {
       if (this.currentActivity) {
         this.saveCurrentActivity();
         this.currentActivity = null;

@@ -206,6 +206,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   recategorizeSession: (sessionId: number, categoryId: number): Promise<void> =>
     ipcRenderer.invoke("tracker:recategorizeSession", sessionId, categoryId),
 
+  recategorizeByRule: (ruleType: string, pattern: string, categoryId: number): Promise<number> =>
+    ipcRenderer.invoke("tracker:recategorizeByRule", ruleType, pattern, categoryId),
+
   // Activity change listener
   onActivityChanged: (callback: (activity: CurrentActivity | null) => void) => {
     const subscription = (

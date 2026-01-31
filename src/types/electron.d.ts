@@ -165,6 +165,7 @@ export interface ElectronAPI {
 
   // Recategorize
   recategorizeSession: (sessionId: number, categoryId: number) => Promise<void>;
+  recategorizeByRule: (ruleType: string, pattern: string, categoryId: number) => Promise<number>;
 
   // Activity change listener
   onActivityChanged: (callback: (activity: CurrentActivity | null) => void) => () => void;

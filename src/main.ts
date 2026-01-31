@@ -292,6 +292,10 @@ ipcMain.handle("tracker:recategorizeSession", (_event, sessionId: number, catego
   tracker?.getDatabase().recategorizeSession(sessionId, categoryId);
 });
 
+ipcMain.handle("tracker:recategorizeByRule", (_event, ruleType: string, pattern: string, categoryId: number) => {
+  return tracker?.getDatabase().recategorizeByRule(ruleType, pattern, categoryId) ?? 0;
+});
+
 // Permissions IPC handlers
 ipcMain.handle("permissions:getStatus", () => {
   return getPermissionsStatus();

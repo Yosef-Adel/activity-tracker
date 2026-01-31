@@ -128,8 +128,8 @@ export function RecategorizeModal({ session, onClose, onSave }: RecategorizeModa
       // 1. Add the rule so future activities get categorized correctly
       await window.electronAPI.addCategoryRule(selectedCategoryId, rule.type, rule.pattern);
 
-      // 2. Recategorize this session's existing activities
-      await window.electronAPI.recategorizeSession(session.id, selectedCategoryId);
+      // 2. Recategorize ALL existing sessions/activities matching this rule pattern
+      await window.electronAPI.recategorizeByRule(rule.type, rule.pattern, selectedCategoryId);
 
       // 3. Reload categorizer so new rule takes effect immediately
       await window.electronAPI.reloadCategories();
