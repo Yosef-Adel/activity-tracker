@@ -5,7 +5,7 @@ import path from "path";
 import * as schema from "./schema";
 import { categories, categoryRules } from "./schema";
 
-const DB_VERSION = 3; // Bump this to force a DB reset + re-seed
+const DB_VERSION = 5; // Bump this to force a DB reset + re-seed
 
 // Rule definition with optional matchMode (defaults to "contains")
 interface RuleDef {
@@ -23,6 +23,7 @@ const DEFAULT_CATEGORIES: Array<{
     domains: (string | RuleDef)[];
     keywords: (string | RuleDef)[];
     domainKeywords?: (string | RuleDef)[];
+    filePaths?: (string | RuleDef)[];
   };
 }> = [
   {
@@ -32,19 +33,69 @@ const DEFAULT_CATEGORIES: Array<{
     rules: {
       apps: [
         "Code", "Visual Studio Code", "VS Code", "WebStorm", "IntelliJ",
-        "PyCharm", "Xcode", "Android Studio", "Terminal", "WezTerm",
-        "iTerm", "Warp", "Hyper", "Alacritty", "kitty", "Electron",
+        "PyCharm", "Cursor", "Zed", "Xcode", "Android Studio",
+        "Terminal", "WezTerm", "iTerm", "Warp", "Hyper", "Alacritty", "kitty",
       ],
       domains: [
-        "github.com", "gitlab.com", "bitbucket.org", "stackoverflow.com",
-        "npmjs.com", "localhost",
+        "github.com", "gitlab.com", "bitbucket.org",
+        "stackoverflow.com", "stackexchange.com",
+        "npmjs.com", "pypi.org", "crates.io",
+        "localhost", "127.0.0.1",
+        "developer.mozilla.org", "react.dev",
+        "typescriptlang.org", "vitejs.dev",
+        "docs.docker.com",
       ],
       keywords: [
-        "debug", "coding", "terminal", "git", "npm", "yarn", "build",
-        "compile", "deploy",
         { pattern: "\\bta\\b", matchMode: "regex" },
         { pattern: "\\btat\\b", matchMode: "regex" },
-        "nvim", "vim",
+        "nvim", "vim", "vscode",
+        "git", "npm", "yarn",
+        "react", "typescript", "javascript", "python",
+        "nextjs", "node.js", "webpack", "tailwind",
+        "api", "frontend", "backend", "fullstack",
+        "algorithm", "data structure",
+      ],
+      domainKeywords: [
+        "claude.ai|typescript", "claude.ai|react", "claude.ai|bug",
+        "claude.ai|error", "claude.ai|code", "claude.ai|fix",
+        "claude.ai|debug", "claude.ai|implement",
+        "chat.openai.com|typescript", "chat.openai.com|react",
+        "chat.openai.com|error", "chat.openai.com|fix",
+        "chat.openai.com|debug", "chat.openai.com|code",
+        "youtube.com|coding", "youtube.com|programming",
+        "youtube.com|vscode", "youtube.com|typescript tutorial",
+      ],
+      filePaths: [
+        { pattern: "\\.(ts|tsx|js|jsx|py|go|java|rs|c|cpp|vue|svelte)$", matchMode: "regex" },
+        { pattern: "(package\\.json|tsconfig\\.json|cargo\\.toml|go\\.mod|requirements\\.txt)", matchMode: "regex" },
+        { pattern: "/src/", matchMode: "contains" },
+        { pattern: "/lib/", matchMode: "contains" },
+      ],
+    },
+  },
+  {
+    name: "system_admin",
+    color: "#10B981",
+    priority: 9,
+    rules: {
+      apps: [],
+      domains: [
+        "nginx.org", "nginx.com",
+        "docker.com", "hub.docker.com",
+      ],
+      keywords: [
+        "nginx", "docker", "kubernetes", "k8s",
+        "ssh", "systemctl", "journalctl",
+        "firewall", "ufw", "iptables",
+        "compose", "dockerfile",
+      ],
+      domainKeywords: [
+        "youtube.com|nginx", "youtube.com|docker",
+        "youtube.com|kubernetes", "youtube.com|devops",
+        "github.com|nginx", "github.com|docker-compose",
+      ],
+      filePaths: [
+        { pattern: "(nginx\\.conf|docker-compose\\.yml|dockerfile|\\.env|\\.sh)$", matchMode: "regex" },
       ],
     },
   },
@@ -54,14 +105,16 @@ const DEFAULT_CATEGORIES: Array<{
     priority: 10,
     rules: {
       apps: [
-        "Slack", "Discord", "Microsoft Teams", "Zoom", "Skype",
+        "Slack", "Discord", "Microsoft Teams",
+        "Zoom", "Google Meet", "Skype",
         "Telegram", "WhatsApp", "Messages",
       ],
       domains: [
-        "slack.com", "discord.com", "teams.microsoft.com", "zoom.us",
+        "slack.com", "discord.com",
+        "teams.microsoft.com", "zoom.us",
         "meet.google.com",
       ],
-      keywords: ["chat", "meeting", "call"],
+      keywords: ["meeting", "call"],
     },
   },
   {
@@ -71,10 +124,12 @@ const DEFAULT_CATEGORIES: Array<{
     rules: {
       apps: ["Twitter", "Facebook", "TweetDeck"],
       domains: [
-        "twitter.com", "x.com", "facebook.com", "instagram.com",
-        "reddit.com", "linkedin.com", "tiktok.com",
+        "twitter.com", "x.com",
+        "facebook.com", "instagram.com",
+        "reddit.com", "linkedin.com",
+        "tiktok.com",
       ],
-      keywords: ["social", "feed", "timeline"],
+      keywords: [],
     },
   },
   {
@@ -82,28 +137,23 @@ const DEFAULT_CATEGORIES: Array<{
     color: "#EF4444",
     priority: 4,
     rules: {
-      apps: ["Spotify", "Apple Music", "Netflix", "VLC", "IINA", "Plex"],
+      apps: [
+        "Spotify", "Apple Music",
+        "Netflix", "VLC", "IINA", "Plex",
+      ],
       domains: [
-        "youtube.com", "netflix.com", "spotify.com", "twitch.tv",
+        "youtube.com", "youtu.be",
+        "spotify.com", "music.apple.com",
+        "netflix.com", "twitch.tv",
         "hulu.com", "disneyplus.com", "primevideo.com",
       ],
-      keywords: ["music", "stream", "watch", "play"],
-    },
-  },
-  {
-    name: "productivity",
-    color: "#A855F7",
-    priority: 8,
-    rules: {
-      apps: [
-        "Notion", "Obsidian", "Evernote", "Microsoft Word", "Excel",
-        "Numbers", "Pages", "Keynote", "PowerPoint",
+      keywords: ["music video", "official video", "trailer"],
+      domainKeywords: [
+        "youtube.com|music video",
+        "youtube.com|official video",
+        "youtube.com|trailer",
+        "youtube.com|clip",
       ],
-      domains: [
-        "notion.so", "docs.google.com", "sheets.google.com",
-        "slides.google.com", "trello.com", "asana.com", "monday.com",
-      ],
-      keywords: ["document", "notes", "spreadsheet", "presentation", "task"],
     },
   },
   {
@@ -113,14 +163,78 @@ const DEFAULT_CATEGORIES: Array<{
     rules: {
       apps: [],
       domains: [
-        "wikipedia.org", "medium.com", "dev.to",
-        "arxiv.org", "scholar.google.com",
+        "wikipedia.org", "arxiv.org", "scholar.google.com",
+        "coursera.org", "udemy.com", "educative.io",
+        "egghead.io", "frontendmasters.com", "pluralsight.com",
+        "claude.ai", "chat.openai.com", "chatgpt.com",
+        "gemini.google.com", "perplexity.ai",
+        "medium.com", "dev.to", "hashnode.dev",
+        "substack.com", "hackernews.com",
+        "news.ycombinator.com",
+        "freecodecamp.org", "w3schools.com",
+        "geeksforgeeks.org", "baeldung.com",
+        "smashingmagazine.com", "css-tricks.com",
       ],
-      keywords: ["search", "research", "article", "tutorial", "learn", "wiki"],
+      keywords: [
+        "article", "tutorial", "guide", "documentation",
+        "how to", "explained", "introduction to",
+      ],
       domainKeywords: [
-        "youtube.com|tutorial", "youtube.com|learn", "youtube.com|course",
-        "youtube.com|how to", "youtube.com|lecture", "youtube.com|documentation",
+        "youtube.com|tutorial", "youtube.com|course",
+        "youtube.com|lecture", "youtube.com|explained",
+        "youtube.com|documentation", "youtube.com|guide",
+        "youtube.com|learn", "youtube.com|how to",
       ],
+      filePaths: [
+        { pattern: "\\.(pdf|epub)$", matchMode: "regex" },
+      ],
+    },
+  },
+  {
+    name: "content_creation",
+    color: "#F59E0B",
+    priority: 8,
+    rules: {
+      apps: [
+        "Premiere Pro", "Final Cut", "DaVinci Resolve",
+        "OBS", "OBS Studio",
+      ],
+      domains: [
+        "studio.youtube.com",
+      ],
+      keywords: [
+        "recording", "editing",
+        "thumbnail", "upload", "render",
+      ],
+    },
+  },
+  {
+    name: "knowledge_work",
+    color: "#A855F7",
+    priority: 9,
+    rules: {
+      apps: ["Obsidian", "Notion", "Logseq", "Roam"],
+      domains: ["notion.so", "obsidian.md"],
+      keywords: [],
+      filePaths: [
+        { pattern: "\\.(md|txt)$", matchMode: "regex" },
+      ],
+    },
+  },
+  {
+    name: "documentation",
+    color: "#8B5CF6",
+    priority: 8,
+    rules: {
+      apps: [
+        "Microsoft Word", "Pages", "Google Docs",
+        "Excel", "Numbers", "Keynote", "PowerPoint",
+      ],
+      domains: [
+        "docs.google.com", "sheets.google.com",
+        "slides.google.com",
+      ],
+      keywords: [],
     },
   },
   {
@@ -132,7 +246,7 @@ const DEFAULT_CATEGORIES: Array<{
       domains: [
         "gmail.com", "outlook.com", "mail.google.com", "mail.yahoo.com",
       ],
-      keywords: ["email", "inbox", "compose"],
+      keywords: ["inbox", "compose"],
     },
   },
   {
@@ -145,7 +259,7 @@ const DEFAULT_CATEGORIES: Array<{
         "Adobe XD", "Canva", "Affinity",
       ],
       domains: ["figma.com", "canva.com", "dribbble.com", "behance.net"],
-      keywords: ["design", "prototype", "mockup", "ui", "ux"],
+      keywords: ["mockup", "prototype"],
     },
   },
   {
@@ -296,6 +410,13 @@ function seedDatabase(db: ReturnType<typeof drizzle>) {
         ruleRows.push({ categoryId, type: "domain_keyword", pattern: item, matchMode: "contains" });
       } else {
         ruleRows.push({ categoryId, type: "domain_keyword", pattern: item.pattern, matchMode: item.matchMode ?? "contains" });
+      }
+    }
+    for (const item of cat.rules.filePaths ?? []) {
+      if (typeof item === "string") {
+        ruleRows.push({ categoryId, type: "file_path", pattern: item, matchMode: "contains" });
+      } else {
+        ruleRows.push({ categoryId, type: "file_path", pattern: item.pattern, matchMode: item.matchMode ?? "contains" });
       }
     }
 

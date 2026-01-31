@@ -1,6 +1,7 @@
 import { powerMonitor } from "electron";
 import PlatformTracker from "./platformTracker";
 import ActivityCategorizer from "./categorizer";
+import type { CategorizationResult } from "./categorizer";
 import ContextExtractor from "./contextExtractor";
 import ActivityDatabase from "./database";
 import type { ExtractedContext } from "./contextExtractor";
@@ -13,6 +14,8 @@ export interface CurrentActivity {
   categoryName: string;
   categoryColor: string;
   context: ExtractedContext;
+  confidence?: number;
+  matchedRules?: string[];
 }
 
 export interface TrackerStatus {
@@ -40,6 +43,7 @@ class TimeTracker {
   private checkIntervalMs = 5000; // Check every 5 seconds
   private idleThresholdSeconds = 120; // 2 minutes of inactivity = idle
 
+  private recentCategoryIds: number[] = [];
   private onActivityChange?: (activity: CurrentActivity | null) => void;
 
   constructor() {
@@ -144,9 +148,26 @@ class TimeTracker {
     const url = ("url" in window ? window.url : null) || null;
 
     const context = this.contextExtractor.extract(appName, title, url);
-    const categoryId = this.categorizer.categorize({ appName, title, url });
+
+    // Build file path from extracted context for scoring
+    const filePath = context.vscode?.filename || context.filename || null;
+
+    const result: CategorizationResult = this.categorizer.categorize({
+      appName,
+      title,
+      url,
+      filePath,
+      recentCategoryIds: this.recentCategoryIds,
+    });
+    const categoryId = result.categoryId;
     const categoryName = this.categorizer.getCategoryName(categoryId);
     const categoryColor = this.categorizer.getCategoryColor(categoryId);
+
+    // Track recent categories for flow state detection
+    this.recentCategoryIds.push(categoryId);
+    if (this.recentCategoryIds.length > 5) {
+      this.recentCategoryIds = this.recentCategoryIds.slice(-5);
+    }
 
     const activity: CurrentActivity = {
       appName,
@@ -156,6 +177,8 @@ class TimeTracker {
       categoryName,
       categoryColor,
       context,
+      confidence: result.confidence,
+      matchedRules: result.matchedRules,
     };
 
     if (this.hasActivityChanged(activity)) {
@@ -221,7 +244,13 @@ class TimeTracker {
       start_time: this.activityStartTime,
       end_time: endTime,
       duration,
-      context_json: JSON.stringify(ctx),
+      context_json: JSON.stringify({
+        ...ctx,
+        categorization: {
+          confidence: this.currentActivity.confidence,
+          matchedRules: this.currentActivity.matchedRules,
+        },
+      }),
     });
   }
 

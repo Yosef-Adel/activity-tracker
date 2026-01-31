@@ -5,6 +5,14 @@ export interface ActivityInput {
   appName: string;
   title: string;
   url?: string | null;
+  filePath?: string | null;
+  recentCategoryIds?: number[];
+}
+
+export interface CategorizationResult {
+  categoryId: number;
+  confidence: number;
+  matchedRules: string[];
 }
 
 export interface CategoryInfo {
@@ -32,8 +40,20 @@ interface CachedCategory {
   apps: CachedRule[];
   domains: CachedRule[];
   keywords: CachedRule[];
-  domainKeywords: CachedRule[]; // compound domain+keyword rules (pattern: "domain|keyword")
+  domainKeywords: CachedRule[];
+  filePaths: CachedRule[];
 }
+
+const WEIGHTS = {
+  APP_MATCH: 5,
+  FILE_PATH: 4,
+  DOMAIN_KEYWORD: 4,
+  DOMAIN_ONLY: 2,
+  KEYWORD: 2,
+  FLOW_BOOST: 1.3,
+};
+
+const CONFIDENCE_THRESHOLD = 2;
 
 class ActivityCategorizer {
   private categoryCache: CachedCategory[] = [];
@@ -57,6 +77,7 @@ class ActivityCategorizer {
         domains: CachedRule[];
         keywords: CachedRule[];
         domainKeywords: CachedRule[];
+        filePaths: CachedRule[];
       }
     >();
     for (const rule of allRules) {
@@ -66,6 +87,7 @@ class ActivityCategorizer {
           domains: [],
           keywords: [],
           domainKeywords: [],
+          filePaths: [],
         });
       }
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -88,6 +110,7 @@ class ActivityCategorizer {
       else if (rule.type === "keyword") bucket.keywords.push(cachedRule);
       else if (rule.type === "domain_keyword")
         bucket.domainKeywords.push(cachedRule);
+      else if (rule.type === "file_path") bucket.filePaths.push(cachedRule);
     }
 
     this.categoryCache = allCategories.map((cat) => {
@@ -96,6 +119,7 @@ class ActivityCategorizer {
         domains: [],
         keywords: [],
         domainKeywords: [],
+        filePaths: [],
       };
       return {
         id: cat.id,
@@ -107,6 +131,7 @@ class ActivityCategorizer {
         domains: rules.domains,
         keywords: rules.keywords,
         domainKeywords: rules.domainKeywords,
+        filePaths: rules.filePaths,
       };
     });
 
@@ -124,10 +149,11 @@ class ActivityCategorizer {
     this.loadFromDb();
   }
 
-  categorize(activity: ActivityInput): number {
+  categorize(activity: ActivityInput): CategorizationResult {
     const appName = activity.appName.toLowerCase();
     const title = activity.title?.toLowerCase() || "";
     const url = activity.url?.toLowerCase() || "";
+    const filePath = activity.filePath?.toLowerCase() || "";
 
     // Parse hostname from URL for domain matching
     let hostname = "";
@@ -139,15 +165,38 @@ class ActivityCategorizer {
       }
     }
 
-    // Priority 1: Check app names first (most reliable)
+    // Score map: category ID → accumulated score
+    const scores = new Map<number, number>();
+    const matchedRules = new Map<number, string[]>();
+
+    // Initialize all categories with 0
+    for (const cat of this.categoryCache) {
+      if (cat.name === "uncategorized") continue;
+      scores.set(cat.id, 0);
+      matchedRules.set(cat.id, []);
+    }
+
+    // === LAYER 1: App Name (most reliable) ===
     for (const cat of this.categoryCache) {
       if (cat.name === "uncategorized") continue;
       if (cat.apps.length > 0 && this.matchesAnyRule(appName, cat.apps)) {
-        return cat.id;
+        scores.set(cat.id, (scores.get(cat.id) || 0) + WEIGHTS.APP_MATCH);
+        matchedRules.get(cat.id)?.push(`app:${appName}`);
       }
     }
 
-    // Priority 2: Check compound domain+keyword rules
+    // === LAYER 2: File Path (DB-driven rules) ===
+    if (filePath) {
+      for (const cat of this.categoryCache) {
+        if (cat.name === "uncategorized") continue;
+        if (cat.filePaths.length > 0 && this.matchesAnyRule(filePath, cat.filePaths)) {
+          scores.set(cat.id, (scores.get(cat.id) || 0) + WEIGHTS.FILE_PATH);
+          matchedRules.get(cat.id)?.push(`file:${filePath.split("/").pop() || filePath}`);
+        }
+      }
+    }
+
+    // === LAYER 3: Domain + Keyword Compound (capped: one match per category) ===
     for (const cat of this.categoryCache) {
       if (cat.name === "uncategorized") continue;
       if (cat.domainKeywords.length > 0 && hostname) {
@@ -159,14 +208,16 @@ class ActivityCategorizer {
           if (this.matchesDomain(hostname, domainPart, "contains")) {
             const combinedText = `${title} ${url}`;
             if (combinedText.includes(keywordPart)) {
-              return cat.id;
+              scores.set(cat.id, (scores.get(cat.id) || 0) + WEIGHTS.DOMAIN_KEYWORD);
+              matchedRules.get(cat.id)?.push(`domain_keyword:${domainPart}|${keywordPart}`);
+              break; // Cap: one domain_keyword match per category
             }
           }
         }
       }
     }
 
-    // Priority 3: Check plain domains
+    // === LAYER 4: Domain Only ===
     for (const cat of this.categoryCache) {
       if (cat.name === "uncategorized") continue;
       if (cat.domains.length > 0 && hostname) {
@@ -178,24 +229,85 @@ class ActivityCategorizer {
               rule.matchMode,
             )
           ) {
-            return cat.id;
+            scores.set(cat.id, (scores.get(cat.id) || 0) + WEIGHTS.DOMAIN_ONLY);
+            matchedRules.get(cat.id)?.push(`domain:${hostname}`);
+            break; // Only count domain match once per category
           }
         }
       }
     }
 
-    // Priority 4: Check keywords in title/url (least reliable)
+    // === LAYER 5: Keywords ===
     for (const cat of this.categoryCache) {
       if (cat.name === "uncategorized") continue;
       if (cat.keywords.length > 0) {
         const combinedText = `${title} ${url}`;
         if (this.matchesAnyRule(combinedText, cat.keywords)) {
-          return cat.id;
+          scores.set(cat.id, (scores.get(cat.id) || 0) + WEIGHTS.KEYWORD);
+          matchedRules.get(cat.id)?.push(`keyword`);
         }
       }
     }
 
-    return this.uncategorizedId;
+    // === LAYER 6: Priority Weighting ===
+    // priority=10 → 2x, priority=5 → 1.5x, priority=0 → no boost
+    for (const [catId, score] of scores) {
+      if (score === 0) continue;
+      const cat = this.categoryCache.find((c) => c.id === catId);
+      if (cat && cat.priority > 0) {
+        const multiplier = 1 + cat.priority / 10;
+        scores.set(catId, score * multiplier);
+      }
+    }
+
+    // === LAYER 7: Flow State Detection (majority-based: 3+ of last 5) ===
+    if (activity.recentCategoryIds && activity.recentCategoryIds.length >= 3) {
+      const recent = activity.recentCategoryIds.slice(-5);
+      // Count occurrences of each category
+      const counts = new Map<number, number>();
+      for (const id of recent) {
+        counts.set(id, (counts.get(id) || 0) + 1);
+      }
+      // Find the dominant category (3+ out of last 5)
+      for (const [catId, count] of counts) {
+        if (count >= 3) {
+          const currentScore = scores.get(catId) || 0;
+          if (currentScore > 0) {
+            scores.set(catId, currentScore * WEIGHTS.FLOW_BOOST);
+            matchedRules.get(catId)?.push("flow_state");
+          }
+          break;
+        }
+      }
+    }
+
+    // === Find Winner ===
+    let maxScore = 0;
+    let winnerId = this.uncategorizedId;
+    let winnerRules: string[] = [];
+
+    for (const [catId, score] of scores) {
+      if (score > maxScore) {
+        maxScore = score;
+        winnerId = catId;
+        winnerRules = matchedRules.get(catId) || [];
+      }
+    }
+
+    // === Confidence Threshold ===
+    if (maxScore < CONFIDENCE_THRESHOLD) {
+      return {
+        categoryId: this.uncategorizedId,
+        confidence: maxScore,
+        matchedRules: ["low_confidence"],
+      };
+    }
+
+    return {
+      categoryId: winnerId,
+      confidence: maxScore,
+      matchedRules: winnerRules,
+    };
   }
 
   private matchesAnyRule(text: string, rules: CachedRule[]): boolean {
