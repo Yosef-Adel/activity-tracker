@@ -40,7 +40,7 @@ const DEFAULT_CATEGORIES: Array<{
     rules: {
       apps: [
         "Code", "Visual Studio Code", "VS Code", "WebStorm", "IntelliJ",
-        "PyCharm", "Cursor", "Zed", "Xcode", "Android Studio",
+        "PyCharm", "Cursor", "Zed", "Xcode", "Android Studio","Antigravity",
         "Terminal", "WezTerm", "iTerm", "Warp", "Hyper", "Alacritty", "kitty",
       ],
       domains: [
