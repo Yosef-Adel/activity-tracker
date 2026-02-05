@@ -328,8 +328,8 @@ ipcMain.handle("tracker:createCategory", (_event, name: string, color: string) =
   return { id };
 });
 
-ipcMain.handle("tracker:updateCategory", (_event, id: number, name?: string, color?: string) => {
-  tracker?.getCategorizer().updateCategory(id, { name, color });
+ipcMain.handle("tracker:updateCategory", (_event, id: number, name?: string, color?: string, isPassive?: boolean) => {
+  tracker?.getCategorizer().updateCategory(id, { name, color, isPassive });
 });
 
 ipcMain.handle("tracker:deleteCategory", (_event, id: number) => {

@@ -206,6 +206,12 @@ export function SettingsPage() {
     setEditingId(null);
   };
 
+  const handleTogglePassive = async (id: number, current: boolean) => {
+    await window.electronAPI.updateCategory(id, undefined, undefined, !current);
+    await window.electronAPI.reloadCategories();
+    await fetchCategories();
+  };
+
   const handleDelete = async (id: number) => {
     await window.electronAPI.deleteCategory(id);
     await window.electronAPI.reloadCategories();
@@ -428,6 +434,11 @@ export function SettingsPage() {
                             style={{ backgroundColor: cat.color }}
                           />
                           <span className="text-sm text-white truncate">{cat.name.replace(/_/g, " ")}</span>
+                          {cat.isPassive && (
+                            <span className="px-1.5 py-0.5 text-[9px] uppercase tracking-wider bg-info/10 text-info rounded-full">
+                              passive
+                            </span>
+                          )}
                           {rules.length > 0 && (
                             <span className="text-[10px] text-grey-600">{rules.length} rules</span>
                           )}
@@ -482,6 +493,26 @@ export function SettingsPage() {
                       {/* Expanded rules section */}
                       {isExpanded && (
                         <div className="pb-3 pl-9">
+                          {/* Passive content toggle */}
+                          <div className="flex items-center justify-between py-2 mb-2 border-b border-white/[0.04]">
+                            <div>
+                              <p className="text-xs text-grey-300">Passive content</p>
+                              <p className="text-[10px] text-grey-600">Skip idle detection (video, calls, music)</p>
+                            </div>
+                            <button
+                              onClick={() => handleTogglePassive(cat.id, cat.isPassive)}
+                              className={`relative w-9 h-5 rounded-full transition-colors ${
+                                cat.isPassive ? "bg-info" : "bg-grey-700"
+                              }`}
+                            >
+                              <div
+                                className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${
+                                  cat.isPassive ? "left-[18px]" : "left-0.5"
+                                }`}
+                              />
+                            </button>
+                          </div>
+
                           {rules.length === 0 ? (
                             <p className="text-xs text-grey-600 mb-2">No rules yet</p>
                           ) : (

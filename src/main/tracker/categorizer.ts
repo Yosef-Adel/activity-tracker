@@ -21,6 +21,7 @@ export interface CategoryInfo {
   color: string;
   isDefault: boolean;
   priority: number;
+  isPassive: boolean;
 }
 
 type MatchMode = "exact" | "contains" | "regex";
@@ -37,6 +38,7 @@ interface CachedCategory {
   color: string;
   isDefault: boolean;
   priority: number;
+  isPassive: boolean;
   apps: CachedRule[];
   domains: CachedRule[];
   keywords: CachedRule[];
@@ -127,6 +129,7 @@ class ActivityCategorizer {
         color: cat.color,
         isDefault: cat.isDefault === 1,
         priority: cat.priority,
+        isPassive: cat.isPassive === 1,
         apps: rules.apps,
         domains: rules.domains,
         keywords: rules.keywords,
@@ -358,6 +361,11 @@ class ActivityCategorizer {
     return cat?.name ?? "uncategorized";
   }
 
+  isCategoryPassive(categoryId: number): boolean {
+    const cat = this.categoryCache.find((c) => c.id === categoryId);
+    return cat?.isPassive ?? false;
+  }
+
   getUncategorizedId(): number {
     return this.uncategorizedId;
   }
@@ -369,16 +377,17 @@ class ActivityCategorizer {
       color: c.color,
       isDefault: c.isDefault,
       priority: c.priority,
+      isPassive: c.isPassive,
     }));
   }
 
   // CRUD operations
 
-  createCategory(name: string, color: string, priority = 0): number {
+  createCategory(name: string, color: string, priority = 0, isPassive = false): number {
     const db = getDb();
     const result = db
       .insert(categories)
-      .values({ name, color, isDefault: 0, priority })
+      .values({ name, color, isDefault: 0, priority, isPassive: isPassive ? 1 : 0 })
       .returning({ id: categories.id })
       .get();
     this.loadFromDb();
@@ -387,13 +396,14 @@ class ActivityCategorizer {
 
   updateCategory(
     id: number,
-    updates: { name?: string; color?: string; priority?: number },
+    updates: { name?: string; color?: string; priority?: number; isPassive?: boolean },
   ): void {
     const db = getDb();
     const setValues: Record<string, string | number> = {};
     if (updates.name !== undefined) setValues.name = updates.name;
     if (updates.color !== undefined) setValues.color = updates.color;
     if (updates.priority !== undefined) setValues.priority = updates.priority;
+    if (updates.isPassive !== undefined) setValues.isPassive = updates.isPassive ? 1 : 0;
     if (Object.keys(setValues).length === 0) return;
 
     db.update(categories).set(setValues).where(eq(categories.id, id)).run();

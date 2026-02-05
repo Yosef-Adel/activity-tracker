@@ -93,35 +93,6 @@ class TimeTracker {
   private async track(): Promise<void> {
     if (this.isPaused) return;
 
-    // Check idle state
-    const idleSeconds = powerMonitor.getSystemIdleTime();
-    const wasIdle = this.isIdle;
-    this.isIdle = idleSeconds >= this.idleThresholdSeconds;
-
-    // User went idle - save current activity and close session
-    if (this.isIdle && !wasIdle) {
-      console.log(`User idle for ${idleSeconds}s, pausing tracking...`);
-      this.saveCurrentActivity();
-      this.db.closeCurrentSession();
-      this.currentActivity = null;
-      this.activityStartTime = null;
-
-      if (this.onActivityChange) {
-        this.onActivityChange(null);
-      }
-      return;
-    }
-
-    // User is still idle - don't track
-    if (this.isIdle) {
-      return;
-    }
-
-    // User returned from idle
-    if (!this.isIdle && wasIdle) {
-      console.log("User active again, resuming tracking...");
-    }
-
     const window = await this.platformTracker.getActiveWindow();
     if (!window) return;
 
@@ -170,6 +141,7 @@ class TimeTracker {
     // Build file path from extracted context for scoring
     const filePath = context.vscode?.filename || context.filename || null;
 
+    // Categorize first — we need the category to decide if this is passive content
     const result: CategorizationResult = this.categorizer.categorize({
       appName,
       title,
@@ -180,6 +152,42 @@ class TimeTracker {
     const categoryId = result.categoryId;
     const categoryName = this.categorizer.getCategoryName(categoryId);
     const categoryColor = this.categorizer.getCategoryColor(categoryId);
+
+    // Suppress idle detection for passive content categories (video, meetings, music, learning)
+    const passiveContent = this.categorizer.isCategoryPassive(categoryId);
+
+    // Check idle state
+    const idleSeconds = powerMonitor.getSystemIdleTime();
+    const wasIdle = this.isIdle;
+    this.isIdle = idleSeconds >= this.idleThresholdSeconds && !passiveContent;
+
+    // User went idle - save current activity and close session
+    if (this.isIdle && !wasIdle) {
+      console.log(`User idle for ${idleSeconds}s, pausing tracking...`);
+      this.saveCurrentActivity();
+      this.db.closeCurrentSession();
+      this.currentActivity = null;
+      this.activityStartTime = null;
+
+      if (this.onActivityChange) {
+        this.onActivityChange(null);
+      }
+      return;
+    }
+
+    // User is still idle - don't track
+    if (this.isIdle) {
+      return;
+    }
+
+    // User returned from idle
+    if (!this.isIdle && wasIdle) {
+      console.log(
+        passiveContent
+          ? `Passive content (${appName}), staying active...`
+          : "User active again, resuming tracking...",
+      );
+    }
 
     // Track recent categories for flow state detection
     this.recentCategoryIds.push(categoryId);

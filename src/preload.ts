@@ -120,6 +120,7 @@ export interface CategoryInfo {
   name: string;
   color: string;
   isDefault: boolean;
+  isPassive: boolean;
 }
 
 export interface CategoryRule {
@@ -202,8 +203,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   createCategory: (name: string, color: string): Promise<{ id: number }> =>
     ipcRenderer.invoke("tracker:createCategory", name, color),
 
-  updateCategory: (id: number, name?: string, color?: string): Promise<void> =>
-    ipcRenderer.invoke("tracker:updateCategory", id, name, color),
+  updateCategory: (id: number, name?: string, color?: string, isPassive?: boolean): Promise<void> =>
+    ipcRenderer.invoke("tracker:updateCategory", id, name, color, isPassive),
 
   deleteCategory: (id: number): Promise<void> =>
     ipcRenderer.invoke("tracker:deleteCategory", id),

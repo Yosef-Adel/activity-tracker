@@ -5,13 +5,20 @@ import path from "path";
 import * as schema from "./schema";
 import { categories, categoryRules } from "./schema";
 
-const DB_VERSION = 7;
+const DB_VERSION = 8;
 
 // Incremental migrations keyed by target version.
 // Each function receives the raw sqlite instance and runs ALTER/CREATE statements.
+const PASSIVE_CATEGORIES = ["entertainment", "communication", "research", "content_creation"];
+
 const MIGRATIONS: Record<number, (sqlite: Database) => void> = {
-  // Example for future use:
-  // 8: (sqlite) => { sqlite.exec("ALTER TABLE activities ADD COLUMN tags TEXT"); },
+  8: (sqlite) => {
+    sqlite.exec("ALTER TABLE categories ADD COLUMN is_passive INTEGER NOT NULL DEFAULT 0");
+    // Mark categories that involve passive content consumption
+    for (const name of PASSIVE_CATEGORIES) {
+      sqlite.exec(`UPDATE categories SET is_passive = 1 WHERE name = '${name}'`);
+    }
+  },
 };
 
 // Rule definition with optional matchMode (defaults to "contains")
@@ -25,6 +32,7 @@ const DEFAULT_CATEGORIES: Array<{
   name: string;
   color: string;
   priority: number;
+  isPassive?: boolean;
   rules: {
     apps: (string | RuleDef)[];
     domains: (string | RuleDef)[];
@@ -110,6 +118,7 @@ const DEFAULT_CATEGORIES: Array<{
     name: "communication",
     color: "#22C55E",
     priority: 10,
+    isPassive: true,
     rules: {
       apps: [
         "Slack", "Discord", "Microsoft Teams",
@@ -143,6 +152,7 @@ const DEFAULT_CATEGORIES: Array<{
     name: "entertainment",
     color: "#EF4444",
     priority: 4,
+    isPassive: true,
     rules: {
       apps: [
         "Spotify", "Apple Music",
@@ -167,6 +177,7 @@ const DEFAULT_CATEGORIES: Array<{
     name: "research",
     color: "#0EA5E9",
     priority: 6,
+    isPassive: true,
     rules: {
       apps: [],
       domains: [
@@ -201,6 +212,7 @@ const DEFAULT_CATEGORIES: Array<{
     name: "content_creation",
     color: "#F59E0B",
     priority: 8,
+    isPassive: true,
     rules: {
       apps: [
         "Premiere Pro", "Final Cut", "DaVinci Resolve",
@@ -316,6 +328,7 @@ function createDatabase() {
       color TEXT NOT NULL,
       is_default INTEGER NOT NULL DEFAULT 1,
       priority INTEGER NOT NULL DEFAULT 0,
+      is_passive INTEGER NOT NULL DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -417,6 +430,7 @@ function seedDatabase(db: ReturnType<typeof drizzle>) {
         color: cat.color,
         isDefault: 1,
         priority: cat.priority,
+        isPassive: cat.isPassive ? 1 : 0,
       })
       .returning({ id: categories.id })
       .get();

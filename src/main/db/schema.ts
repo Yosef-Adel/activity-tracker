@@ -8,6 +8,7 @@ export const categories = sqliteTable("categories", {
   color: text("color").notNull(),
   isDefault: integer("is_default").notNull().default(1),
   priority: integer("priority").notNull().default(0),
+  isPassive: integer("is_passive").notNull().default(0),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
