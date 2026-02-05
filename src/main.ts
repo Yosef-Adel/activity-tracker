@@ -42,7 +42,7 @@ function createTray() {
   tray = new Tray(icon);
   tray.setToolTip("Activity Tracker");
 
-  // Any click on the tray icon shows the context menu (no window toggling)
+  // Click toggles the context menu
   tray.on("click", () => {
     const menu = buildTrayMenu();
     tray?.popUpContextMenu(menu);
