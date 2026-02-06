@@ -17,16 +17,44 @@ function formatDuration(ms: number): string {
 
 export class NotificationManager {
   private db: ActivityDatabase;
-  private notifiedGoalsToday = new Set<string>();
-  private lastNotifiedDate: string | null = null;
   private breakTimer: ReturnType<typeof setTimeout> | null = null;
   private lastBreakNotification = 0;
   private dailySummaryTimer: ReturnType<typeof setTimeout> | null = null;
   private dailySummaryShownToday = false;
+  private lastSummaryDate: string | null = null;
 
   constructor(db: ActivityDatabase) {
     this.db = db;
     this.scheduleDailySummary();
+  }
+
+  /** Get the set of goals already notified today (persisted in DB). */
+  private getNotifiedGoalsToday(): Set<string> {
+    const stored = this.db.getSetting("goals_notified_today");
+    if (!stored) return new Set();
+
+    try {
+      const parsed = JSON.parse(stored);
+      const today = new Date().toDateString();
+      // Check if the stored data is from today
+      if (parsed.date === today && Array.isArray(parsed.goals)) {
+        return new Set(parsed.goals);
+      }
+    } catch {
+      // Ignore parse errors
+    }
+    return new Set();
+  }
+
+  /** Mark a goal as notified today (persisted in DB). */
+  private markGoalNotified(categoryName: string): void {
+    const notified = this.getNotifiedGoalsToday();
+    notified.add(categoryName);
+    const today = new Date().toDateString();
+    this.db.setSetting("goals_notified_today", JSON.stringify({
+      date: today,
+      goals: Array.from(notified),
+    }));
   }
 
   /** Called when user becomes active (activity started or changed). */
@@ -49,13 +77,6 @@ export class NotificationManager {
   checkGoals(): void {
     if (!this.isEnabled()) return;
 
-    // Reset notified set if the date has changed
-    const today = new Date().toDateString();
-    if (this.lastNotifiedDate !== today) {
-      this.notifiedGoalsToday.clear();
-      this.lastNotifiedDate = today;
-    }
-
     const goalsJson = this.db.getSetting("daily_goals");
     if (!goalsJson) return;
 
@@ -74,15 +95,16 @@ export class NotificationManager {
     const startTs = startOfToday.getTime();
 
     const breakdown = this.db.getCategoryBreakdown(startTs, now);
+    const notifiedToday = this.getNotifiedGoalsToday();
 
     for (const goal of goals) {
-      if (this.notifiedGoalsToday.has(goal.categoryName)) continue;
+      if (notifiedToday.has(goal.categoryName)) continue;
 
       const match = breakdown.find((c) => c.category_name === goal.categoryName);
       const currentMs = match?.total_duration ?? 0;
 
       if (currentMs >= goal.targetMs) {
-        this.notifiedGoalsToday.add(goal.categoryName);
+        this.markGoalNotified(goal.categoryName);
         const label = goal.categoryName.replace(/_/g, " ");
         const hours = (goal.targetMs / 3600000).toFixed(1).replace(/\.0$/, "");
         new Notification({
@@ -197,7 +219,7 @@ export class NotificationManager {
     if (now >= nextSummary) {
       nextSummary.setDate(nextSummary.getDate() + 1);
       // Reset the flag for the new day
-      if (now.toDateString() !== this.lastNotifiedDate) {
+      if (now.toDateString() !== this.lastSummaryDate) {
         this.dailySummaryShownToday = false;
       }
     }
@@ -222,10 +244,10 @@ export class NotificationManager {
     if (!this.isDailySummaryEnabled()) return;
 
     const today = new Date().toDateString();
-    if (this.dailySummaryShownToday && this.lastNotifiedDate === today) return;
+    if (this.dailySummaryShownToday && this.lastSummaryDate === today) return;
 
     this.dailySummaryShownToday = true;
-    this.lastNotifiedDate = today;
+    this.lastSummaryDate = today;
 
     // Get today's data
     const now = Date.now();

@@ -30,6 +30,7 @@ export interface CategoryBreakdown {
   category_id: number;
   category_name: string;
   category_color: string;
+  productivity_type: string;
   total_duration: number;
   session_count: number;
 }

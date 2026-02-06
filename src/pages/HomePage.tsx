@@ -1,13 +1,10 @@
 import { useEffect, useState, useMemo } from "react";
 import {
   Card,
-  ScoreCircle,
-  GoalCard,
   SkeletonTimeline,
   SkeletonActivityFeed,
   SkeletonStatCard,
   SkeletonListCard,
-  SkeletonGoalCard,
 } from "../components";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import {
@@ -20,7 +17,7 @@ import {
   setDateRangeWeek,
 } from "../store/slices";
 import { formatDuration, getPercentage } from "../utils/time";
-import type { HourlyPattern, DomainUsage, CategoryInfo } from "../types/electron";
+import type { HourlyPattern, CategoryInfo } from "../types/electron";
 
 // Hook for live elapsed time
 function useElapsedTime(startTime: number | null) {
@@ -41,6 +38,38 @@ function useElapsedTime(startTime: number | null) {
   return elapsed;
 }
 
+// Compact circular progress for goals
+function MiniGoalCircle({ percent, color }: { percent: number; color: string }) {
+  const radius = 16;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (percent / 100) * circumference;
+
+  return (
+    <svg width="40" height="40" className="transform -rotate-90">
+      <circle
+        cx="20"
+        cy="20"
+        r={radius}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="3"
+        className="text-white/10"
+      />
+      <circle
+        cx="20"
+        cy="20"
+        r={radius}
+        fill="none"
+        stroke={color}
+        strokeWidth="3"
+        strokeDasharray={circumference}
+        strokeDashoffset={offset}
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 export function HomePage() {
   const dispatch = useAppDispatch();
   const {
@@ -48,16 +77,14 @@ export function HomePage() {
     currentActivity,
     appUsage,
     categoryBreakdown,
-    projectTime,
     totalTime,
     dateRange,
     sessions,
   } = useAppSelector((state) => state.tracking);
 
   const [hourlyPattern, setHourlyPattern] = useState<HourlyPattern[]>([]);
-  const [domainUsage, setDomainUsage] = useState<DomainUsage[]>([]);
-  const [shortsTime, setShortsTime] = useState<{ total_duration: number; count: number }>({ total_duration: 0, count: 0 });
   const [categoryList, setCategoryList] = useState<CategoryInfo[]>([]);
+  const [goals, setGoals] = useState<Array<{ categoryName: string; targetMs: number }>>([]);
   const [viewMode, setViewMode] = useState<"day" | "week">("day");
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -71,31 +98,35 @@ export function HomePage() {
 
   const elapsedTime = useElapsedTime(status?.trackingSince ?? null);
 
-  // Calculate scores
-  const scores = useMemo(() => {
+  // Calculate focus score
+  const focusScore = useMemo(() => {
     const productiveTime = categoryBreakdown
       .filter((c) => productiveCategoryNames.has(c.category_name))
       .reduce((sum, c) => sum + c.total_duration, 0);
-
-    const meetingTime = categoryBreakdown
-      .filter((c) => c.category_name === "communication")
-      .reduce((sum, c) => sum + c.total_duration, 0);
-
-    const focusScore = totalTime > 0 ? Math.round((productiveTime / totalTime) * 100) : 0;
-    const meetingPercent = totalTime > 0 ? Math.round((meetingTime / totalTime) * 100) : 0;
-
-    return {
-      focus: focusScore,
-      focusTime: productiveTime,
-      meetings: meetingPercent,
-      meetingTime: meetingTime,
-    };
+    return totalTime > 0 ? Math.round((productiveTime / totalTime) * 100) : 0;
   }, [categoryBreakdown, totalTime, productiveCategoryNames]);
+
+  // Goals with progress
+  const goalsWithProgress = useMemo(() => {
+    return goals.map((goal) => {
+      const cat = categoryBreakdown.find((c) => c.category_name === goal.categoryName);
+      const current = cat?.total_duration ?? 0;
+      const targetMs = goal.targetMs;
+      const percent = targetMs > 0 ? Math.min(100, Math.round((current / targetMs) * 100)) : 0;
+      const categoryInfo = categoryList.find((c) => c.name === goal.categoryName);
+      return {
+        categoryName: goal.categoryName,
+        current,
+        targetMs,
+        percent,
+        color: categoryInfo?.color ?? cat?.category_color ?? "#6366f1",
+      };
+    });
+  }, [goals, categoryBreakdown, categoryList]);
 
   // Timeline data (hourly blocks)
   const timelineData = useMemo(() => {
     const hours = [];
-    // Find max minutes for scaling
     let maxMinutes = 0;
     const hourTotals: { [key: number]: { minutes: number; color: string | null } } = {};
 
@@ -111,7 +142,6 @@ export function HomePage() {
       if (totalMinutes > maxMinutes) maxMinutes = totalMinutes;
     }
 
-    // Scale based on max (or use 60 minutes as baseline if no data)
     const scaleMax = Math.max(maxMinutes, 30);
 
     for (let i = 6; i <= 21; i++) {
@@ -131,7 +161,6 @@ export function HomePage() {
     if (mode === viewMode) return;
     setIsTransitioning(true);
     setViewMode(mode);
-    // Let the fade-out happen, then data loads, then fade-in
     setTimeout(() => setIsTransitioning(false), 150);
   };
 
@@ -146,13 +175,15 @@ export function HomePage() {
 
   useEffect(() => {
     const loadData = async () => {
+      const goalsStr = await window.electronAPI.getSetting("daily_goals");
+      if (goalsStr) {
+        try { setGoals(JSON.parse(goalsStr)); } catch { /* ignore */ }
+      }
       await Promise.all([
         dispatch(fetchDashboardData({ start: dateRange.start, end: dateRange.end })),
         dispatch(fetchActivities({ start: dateRange.start, end: dateRange.end })),
         dispatch(fetchSessions({ start: dateRange.start, end: dateRange.end })),
         window.electronAPI.getHourlyPattern(dateRange.start, dateRange.end).then(setHourlyPattern),
-        window.electronAPI.getDomainUsage(dateRange.start, dateRange.end).then(setDomainUsage),
-        window.electronAPI.getShortsTime(dateRange.start, dateRange.end).then(setShortsTime),
         window.electronAPI.getCategories().then(setCategoryList),
       ]);
       setIsInitialLoad(false);
@@ -166,8 +197,6 @@ export function HomePage() {
       dispatch(fetchActivities({ start: dateRange.start, end: Date.now() }));
       dispatch(fetchSessions({ start: dateRange.start, end: Date.now() }));
       window.electronAPI.getHourlyPattern(dateRange.start, Date.now()).then(setHourlyPattern);
-      window.electronAPI.getDomainUsage(dateRange.start, Date.now()).then(setDomainUsage);
-      window.electronAPI.getShortsTime(dateRange.start, Date.now()).then(setShortsTime);
     });
 
     return () => unsubscribe();
@@ -184,8 +213,26 @@ export function HomePage() {
     <div className="p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <div>
+        <div className="flex items-center gap-6">
           <h1 className="text-xl font-semibold text-white">{today}</h1>
+          {/* Current Activity Indicator */}
+          {currentActivity && !status?.isIdle && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-lg">
+              <div
+                className="w-2 h-2 rounded-full animate-pulse"
+                style={{ backgroundColor: currentActivity.categoryColor }}
+              />
+              <span className="text-sm text-white">{currentActivity.appName}</span>
+              <span className="text-xs text-grey-500">•</span>
+              <span className="text-sm font-mono text-grey-400">{formatDuration(elapsedTime)}</span>
+            </div>
+          )}
+          {status?.isIdle && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-warning/10 rounded-lg">
+              <div className="w-2 h-2 rounded-full bg-warning" />
+              <span className="text-sm text-warning">Idle</span>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -213,40 +260,45 @@ export function HomePage() {
 
       {isInitialLoad ? (
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-          <div className="xl:col-span-8 space-y-4">
+          <div className="xl:col-span-9 space-y-4">
             <SkeletonTimeline />
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <SkeletonActivityFeed />
+              <SkeletonListCard />
               <SkeletonListCard />
             </div>
+            <SkeletonActivityFeed />
           </div>
-          <div className="xl:col-span-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-4">
+          <div className="xl:col-span-3 space-y-4">
             <SkeletonStatCard />
-            <SkeletonGoalCard />
-            <SkeletonListCard />
-            <SkeletonListCard />
-            <SkeletonListCard />
             <SkeletonListCard />
           </div>
         </div>
       ) : (
       <div className={`grid grid-cols-1 xl:grid-cols-12 gap-4 transition-opacity duration-150 ${isTransitioning ? "opacity-50" : "opacity-100"}`}>
-        {/* Main Content - Left Side */}
-        <div className="xl:col-span-8 space-y-4">
-          {/* Timeline Card */}
+        {/* Main Content */}
+        <div className="xl:col-span-9 space-y-4">
+          {/* Timeline Card - Larger */}
           <Card>
             <p className="text-[11px] uppercase tracking-wider text-grey-500 mb-4">Timeline</p>
-            <div className="flex items-end gap-1.5 h-20">
+            <div className="flex items-end gap-1 h-28">
               {timelineData.map((hour) => (
-                <div key={hour.hour} className="flex-1 flex flex-col items-center justify-end h-full">
+                <div key={hour.hour} className="flex-1 flex flex-col items-center justify-end h-full group relative">
                   <div
-                    className="w-full rounded-t transition-all duration-300"
+                    className="w-full rounded-t transition-all duration-300 hover:opacity-80"
                     style={{
                       height: hour.minutes > 0 ? `${hour.height}%` : "4px",
                       backgroundColor: hour.color || "#27272a",
                       minHeight: hour.minutes > 0 ? "8px" : "4px",
                     }}
                   />
+                  {/* Tooltip */}
+                  {hour.minutes > 0 && (
+                    <div className="absolute bottom-full mb-2 hidden group-hover:block z-10">
+                      <div className="bg-grey-900 text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap">
+                        {Math.round(hour.minutes)}m
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -257,256 +309,211 @@ export function HomePage() {
             </div>
           </Card>
 
-          {/* Current Activity */}
-          {currentActivity && !status?.isIdle && (
-            <Card className="border-l-2 border-l-primary">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-2 h-2 rounded-full animate-pulse"
-                    style={{ backgroundColor: currentActivity.categoryColor }}
-                  />
-                  <div>
-                    <p className="text-sm font-medium text-white">{currentActivity.appName}</p>
-                    <p className="text-xs text-grey-500 truncate max-w-md">{currentActivity.title}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-lg font-mono font-semibold text-white">
-                    {formatDuration(elapsedTime)}
-                  </p>
-                  <span
-                    className="text-[10px] uppercase tracking-wider"
-                    style={{ color: currentActivity.categoryColor }}
-                  >
-                    {currentActivity.categoryName}
-                  </span>
-                </div>
-              </div>
-            </Card>
-          )}
-
+          {/* Top Apps + Categories Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Activity Feed (grouped by session) */}
+            {/* Top Apps */}
             <Card>
-              <p className="text-[11px] uppercase tracking-wider text-grey-500 mb-4">Activity</p>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {sessions.slice(0, 10).map((session) => (
-                  <div key={session.id} className="flex items-center gap-3 text-sm">
-                    <span className="text-grey-500 text-xs font-mono w-14">
-                      {new Date(session.start_time).toLocaleTimeString("en-US", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        hour12: false,
-                      })}
-                    </span>
-                    <span
-                      className="w-1 h-4 rounded-full"
-                      style={{ backgroundColor: session.category_color || "#71717a" }}
-                    />
-                    <span className="text-white truncate flex-1">{session.app_name}</span>
-                    {session.activity_count > 1 && (
-                      <span className="text-grey-600 text-[10px]">{session.activity_count}</span>
-                    )}
-                    <span className="text-grey-500 text-xs">{formatDuration(session.total_duration)}</span>
-                  </div>
-                ))}
-                {sessions.length === 0 && (
-                  <div className="text-center py-4">
-                    <p className="text-grey-400 text-sm mb-1">No activity recorded</p>
-                    <p className="text-grey-600 text-xs">Start using apps to see your timeline</p>
-                  </div>
+              <p className="text-[11px] uppercase tracking-wider text-grey-500 mb-4">Top Apps</p>
+              <div className="space-y-2.5">
+                {appUsage.slice(0, 5).map((app) => {
+                  const percent = getPercentage(app.total_duration, totalTime);
+                  return (
+                    <div key={app.app_name} className="flex items-center gap-3">
+                      <span className="text-sm text-white flex-1 truncate">{app.app_name}</span>
+                      <div className="w-20 h-1.5 bg-grey-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-primary"
+                          style={{ width: `${percent}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-grey-500 w-12 text-right">{formatDuration(app.total_duration)}</span>
+                    </div>
+                  );
+                })}
+                {appUsage.length === 0 && (
+                  <p className="text-grey-500 text-sm text-center py-4">No apps tracked yet</p>
                 )}
               </div>
             </Card>
 
-            {/* Projects */}
+            {/* Categories */}
             <Card>
-              <p className="text-[11px] uppercase tracking-wider text-grey-500 mb-4">Projects</p>
-              <div className="space-y-3">
-                {projectTime.slice(0, 6).map((project) => {
-                  const percent = getPercentage(project.total_duration, totalTime);
+              <p className="text-[11px] uppercase tracking-wider text-grey-500 mb-4">Categories</p>
+              <div className="space-y-2.5">
+                {categoryBreakdown.slice(0, 5).map((cat) => {
+                  const percent = getPercentage(cat.total_duration, totalTime);
                   return (
-                    <div key={project.project_id} className="flex items-center gap-3">
+                    <div key={cat.category_id} className="flex items-center gap-3">
                       <div
                         className="w-2 h-2 rounded-full shrink-0"
-                        style={{ backgroundColor: project.project_color }}
+                        style={{ backgroundColor: cat.category_color }}
                       />
-                      <span className="text-xs text-grey-500 w-8">{percent}%</span>
-                      <span className="text-sm text-white flex-1 truncate">{project.project_name}</span>
-                      <div className="w-20 h-1.5 bg-grey-800 rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full"
-                          style={{ width: `${percent}%`, backgroundColor: project.project_color }}
-                        />
-                      </div>
-                      <span className="text-xs text-grey-500 w-16 text-right">
-                        {formatDuration(project.total_duration)}
-                      </span>
+                      <span className="capitalize text-sm text-white flex-1 truncate">{cat.category_name}</span>
+                      <span className="text-xs text-grey-600 w-8">{percent}%</span>
+                      <span className="text-xs text-grey-500 w-12 text-right">{formatDuration(cat.total_duration)}</span>
                     </div>
                   );
                 })}
-                {projectTime.length === 0 && (
-                  <div className="text-center py-4">
-                    <p className="text-grey-400 text-sm mb-1">No projects assigned</p>
-                    <p className="text-grey-600 text-xs">Create projects in Settings, then assign sessions in Activities</p>
-                  </div>
+                {categoryBreakdown.length === 0 && (
+                  <p className="text-grey-500 text-sm text-center py-4">No activity yet</p>
                 )}
               </div>
             </Card>
           </div>
-        </div>
 
-        {/* Right Sidebar */}
-        <div className="xl:col-span-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-4">
-          {/* Total Time */}
+          {/* Recent Activity */}
           <Card>
-            <div className="mb-4">
-              <p className="text-[11px] text-grey-500 mb-1">Total time</p>
-              <p className="text-2xl xl:text-3xl font-semibold text-white">{formatDuration(totalTime)}</p>
-            </div>
-            <div className="flex items-center justify-between text-xs text-grey-500">
-              <span>
-                Tracking: {status?.isPaused ? "Paused" : status?.isRunning ? "On" : "Off"}
-              </span>
-              <div className="flex items-center gap-2">
-                {status?.isIdle && <span className="text-warning">Idle</span>}
-                {status?.isRunning && (
-                  <button
-                    onClick={async () => {
-                      if (status?.isPaused) {
-                        await window.electronAPI.resumeTracking();
-                      } else {
-                        await window.electronAPI.pauseTracking();
-                      }
-                      dispatch(fetchTrackerStatus());
-                    }}
-                    className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                      status?.isPaused
-                        ? "bg-primary/20 text-primary hover:bg-primary/30"
-                        : "bg-white/5 text-grey-400 hover:bg-white/10 hover:text-white"
-                    }`}
-                  >
-                    {status?.isPaused ? "Resume" : "Pause"}
-                  </button>
-                )}
-              </div>
-            </div>
-          </Card>
-
-          {/* Daily Goals */}
-          <GoalCard categoryBreakdown={categoryBreakdown} />
-
-          {/* Scores */}
-          <Card>
-            <p className="text-[11px] uppercase tracking-wider text-grey-500 mb-4">Scores</p>
-            <div className="flex flex-wrap gap-4">
-              <ScoreCircle
-                score={scores.focus}
-                label="Focus"
-                subLabel={formatDuration(scores.focusTime)}
-                color="#8b5cf6"
-              />
-              <ScoreCircle
-                score={scores.meetings}
-                label="Meetings"
-                subLabel={formatDuration(scores.meetingTime)}
-                color="#22c55e"
-              />
-            </div>
-          </Card>
-
-          {/* Time Breakdown */}
-          <Card>
-            <p className="text-[11px] uppercase tracking-wider text-grey-500 mb-4">Time Breakdown</p>
-            <div className="space-y-2.5">
-              {categoryBreakdown.slice(0, 6).map((cat) => {
-                const percent = getPercentage(cat.total_duration, totalTime);
-                return (
-                  <div key={cat.category_id} className="flex items-center gap-2">
-                    <span className="text-xs text-grey-500 w-7 flex-shrink-0">{percent}%</span>
-                    <span className="capitalize text-sm text-white flex-1 truncate min-w-0">{cat.category_name}</span>
-                    <div className="w-12 h-1.5 bg-grey-800 rounded-full overflow-hidden flex-shrink-0">
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${percent}%`,
-                          backgroundColor: cat.category_color,
-                        }}
-                      />
-                    </div>
-                    <span className="text-xs text-grey-500 flex-shrink-0">
-                      {formatDuration(cat.total_duration)}
-                    </span>
-                  </div>
-                );
-              })}
-              {categoryBreakdown.length === 0 && (
-                <div className="text-center py-4">
-                  <p className="text-grey-400 text-sm mb-1">No categories tracked</p>
-                  <p className="text-grey-600 text-xs">Activity will be categorized automatically</p>
-                </div>
-              )}
-            </div>
-          </Card>
-
-          {/* Websites */}
-          <Card>
-            <p className="text-[11px] uppercase tracking-wider text-grey-500 mb-4">Websites</p>
-            <div className="space-y-2">
-              {domainUsage.slice(0, 6).map((site, index) => (
-                <div key={site.domain} className="flex items-center gap-2">
-                  <span className="text-xs text-grey-600 w-4 flex-shrink-0">{index + 1}</span>
-                  <span className="text-sm text-white flex-1 truncate min-w-0">{site.domain}</span>
-                  <span className="text-xs text-grey-500 flex-shrink-0">{formatDuration(site.total_duration)}</span>
+            <p className="text-[11px] uppercase tracking-wider text-grey-500 mb-4">Recent Activity</p>
+            <div className="space-y-2 max-h-72 overflow-y-auto">
+              {sessions.slice(0, 12).map((session) => (
+                <div key={session.id} className="flex items-center gap-3 text-sm py-1">
+                  <span className="text-grey-500 text-xs font-mono w-12">
+                    {new Date(session.start_time).toLocaleTimeString("en-US", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: false,
+                    })}
+                  </span>
+                  <span
+                    className="w-1 h-4 rounded-full shrink-0"
+                    style={{ backgroundColor: session.category_color || "#71717a" }}
+                  />
+                  <span className="text-white truncate flex-1">{session.app_name}</span>
+                  <span className="text-grey-600 text-xs capitalize">{session.category_name}</span>
+                  <span className="text-grey-500 text-xs w-14 text-right">{formatDuration(session.total_duration)}</span>
                 </div>
               ))}
-              {domainUsage.length === 0 && (
-                <div className="text-center py-4">
-                  <p className="text-grey-400 text-sm mb-1">No websites visited</p>
-                  <p className="text-grey-600 text-xs">Browse the web to see domain stats</p>
-                </div>
+              {sessions.length === 0 && (
+                <p className="text-grey-500 text-sm text-center py-8">No activity recorded today</p>
+              )}
+            </div>
+          </Card>
+        </div>
+
+        {/* Right Sidebar - Compact */}
+        <div className="xl:col-span-3 space-y-4">
+          {/* Total Time + Focus Score */}
+          <Card>
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <p className="text-[11px] text-grey-500 mb-1">Total time</p>
+                <p className="text-3xl font-semibold text-white">{formatDuration(totalTime)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[11px] text-grey-500 mb-1">Focus</p>
+                <p className="text-2xl font-semibold text-primary">{focusScore}%</p>
+              </div>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-grey-500">
+                {status?.isPaused ? "Paused" : status?.isRunning ? "Tracking" : "Stopped"}
+              </span>
+              {status?.isRunning && (
+                <button
+                  onClick={async () => {
+                    if (status?.isPaused) {
+                      await window.electronAPI.resumeTracking();
+                    } else {
+                      await window.electronAPI.pauseTracking();
+                    }
+                    dispatch(fetchTrackerStatus());
+                  }}
+                  className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                    status?.isPaused
+                      ? "bg-primary/20 text-primary hover:bg-primary/30"
+                      : "bg-white/5 text-grey-400 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  {status?.isPaused ? "Resume" : "Pause"}
+                </button>
               )}
             </div>
           </Card>
 
-          {/* Shorts / Reels Insight */}
-          {shortsTime.total_duration > 0 && (
+          {/* Daily Goals - Compact */}
+          {goalsWithProgress.length > 0 && (
             <Card>
-              <p className="text-[11px] uppercase tracking-wider text-grey-500 mb-3">Short-form Video</p>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-error/10 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-error" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z" />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <p className="text-lg font-semibold text-white">{formatDuration(shortsTime.total_duration)}</p>
-                  <p className="text-[11px] text-grey-500">
-                    {shortsTime.count} short{shortsTime.count !== 1 ? "s" : ""} watched on YouTube
-                  </p>
-                </div>
+              <p className="text-[11px] uppercase tracking-wider text-grey-500 mb-4">Daily Goals</p>
+              <div className="space-y-3">
+                {goalsWithProgress.map((goal) => (
+                  <div key={goal.categoryName} className="flex items-center gap-3">
+                    <MiniGoalCircle percent={goal.percent} color={goal.color} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white capitalize truncate">{goal.categoryName.replace(/_/g, " ")}</p>
+                      <p className="text-[11px] text-grey-500">
+                        {formatDuration(goal.current)} / {formatDuration(goal.targetMs)}
+                      </p>
+                    </div>
+                    <span className="text-sm font-medium text-white">{goal.percent}%</span>
+                  </div>
+                ))}
               </div>
             </Card>
           )}
 
-          {/* Top Apps */}
+          {/* Productivity Breakdown */}
           <Card>
-            <p className="text-[11px] uppercase tracking-wider text-grey-500 mb-4">Top Apps</p>
-            <div className="space-y-2">
-              {appUsage.slice(0, 5).map((app, index) => (
-                <div key={app.app_name} className="flex items-center gap-2">
-                  <span className="text-xs text-grey-600 w-4 flex-shrink-0">{index + 1}</span>
-                  <span className="text-sm text-white flex-1 truncate min-w-0">{app.app_name}</span>
-                  <span className="text-xs text-grey-500 flex-shrink-0">{formatDuration(app.total_duration)}</span>
-                </div>
-              ))}
-              {appUsage.length === 0 && (
-                <div className="text-center py-4">
-                  <p className="text-grey-400 text-sm mb-1">No apps tracked</p>
-                  <p className="text-grey-600 text-xs">Your most-used apps will appear here</p>
-                </div>
-              )}
+            <p className="text-[11px] uppercase tracking-wider text-grey-500 mb-4">Productivity</p>
+            <div className="space-y-3">
+              {/* Productive */}
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-success" />
+                <span className="text-sm text-white flex-1">Productive</span>
+                <span className="text-xs text-grey-500">
+                  {formatDuration(
+                    categoryBreakdown
+                      .filter((c) => c.productivity_type === "productive")
+                      .reduce((sum, c) => sum + c.total_duration, 0)
+                  )}
+                </span>
+              </div>
+              {/* Neutral */}
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-grey-500" />
+                <span className="text-sm text-white flex-1">Neutral</span>
+                <span className="text-xs text-grey-500">
+                  {formatDuration(
+                    categoryBreakdown
+                      .filter((c) => c.productivity_type === "neutral")
+                      .reduce((sum, c) => sum + c.total_duration, 0)
+                  )}
+                </span>
+              </div>
+              {/* Distraction */}
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-error" />
+                <span className="text-sm text-white flex-1">Distraction</span>
+                <span className="text-xs text-grey-500">
+                  {formatDuration(
+                    categoryBreakdown
+                      .filter((c) => c.productivity_type === "distraction")
+                      .reduce((sum, c) => sum + c.total_duration, 0)
+                  )}
+                </span>
+              </div>
+            </div>
+            {/* Mini bar */}
+            <div className="flex h-2 rounded-full overflow-hidden mt-4 bg-grey-800">
+              {(() => {
+                const productive = categoryBreakdown
+                  .filter((c) => c.productivity_type === "productive")
+                  .reduce((sum, c) => sum + c.total_duration, 0);
+                const neutral = categoryBreakdown
+                  .filter((c) => c.productivity_type === "neutral")
+                  .reduce((sum, c) => sum + c.total_duration, 0);
+                const distraction = categoryBreakdown
+                  .filter((c) => c.productivity_type === "distraction")
+                  .reduce((sum, c) => sum + c.total_duration, 0);
+                const total = productive + neutral + distraction;
+                if (total === 0) return null;
+                return (
+                  <>
+                    <div className="bg-success" style={{ width: `${(productive / total) * 100}%` }} />
+                    <div className="bg-grey-500" style={{ width: `${(neutral / total) * 100}%` }} />
+                    <div className="bg-error" style={{ width: `${(distraction / total) * 100}%` }} />
+                  </>
+                );
+              })()}
             </div>
           </Card>
         </div>
