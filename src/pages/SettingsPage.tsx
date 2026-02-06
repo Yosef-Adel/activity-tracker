@@ -214,44 +214,59 @@ export function SettingsPage() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [breakRemindersEnabled, setBreakRemindersEnabled] = useState(true);
   const [breakIntervalMinutes, setBreakIntervalMinutes] = useState(60);
+  const [pomodoroNotificationsEnabled, setPomodoroNotificationsEnabled] = useState(true);
+  const [dailySummaryEnabled, setDailySummaryEnabled] = useState(true);
+  const [dailySummaryHour, setDailySummaryHour] = useState(18);
 
   const fetchNotificationSettings = async () => {
-    const [notifEnabled, breakEnabled, breakInterval] = await Promise.all([
+    const [notifEnabled, breakEnabled, breakInterval, pomodoroEnabled, summaryEnabled, summaryHour] = await Promise.all([
       window.electronAPI.getSetting("notifications_enabled"),
       window.electronAPI.getSetting("break_reminders_enabled"),
       window.electronAPI.getSetting("break_interval_minutes"),
+      window.electronAPI.getSetting("pomodoro_notifications_enabled"),
+      window.electronAPI.getSetting("daily_summary_enabled"),
+      window.electronAPI.getSetting("daily_summary_hour"),
     ]);
     setNotificationsEnabled(notifEnabled !== "false");
     setBreakRemindersEnabled(breakEnabled !== "false");
-    setBreakIntervalMinutes(
-      breakInterval ? parseInt(breakInterval, 10) || 60 : 60,
-    );
+    setBreakIntervalMinutes(breakInterval ? parseInt(breakInterval, 10) || 60 : 60);
+    setPomodoroNotificationsEnabled(pomodoroEnabled !== "false");
+    setDailySummaryEnabled(summaryEnabled !== "false");
+    setDailySummaryHour(summaryHour ? parseInt(summaryHour, 10) || 18 : 18);
   };
 
   const handleToggleNotifications = async () => {
     const newValue = !notificationsEnabled;
-    await window.electronAPI.setSetting(
-      "notifications_enabled",
-      String(newValue),
-    );
+    await window.electronAPI.setSetting("notifications_enabled", String(newValue));
     setNotificationsEnabled(newValue);
   };
 
   const handleToggleBreakReminders = async () => {
     const newValue = !breakRemindersEnabled;
-    await window.electronAPI.setSetting(
-      "break_reminders_enabled",
-      String(newValue),
-    );
+    await window.electronAPI.setSetting("break_reminders_enabled", String(newValue));
     setBreakRemindersEnabled(newValue);
   };
 
   const handleBreakIntervalChange = async (minutes: number) => {
-    await window.electronAPI.setSetting(
-      "break_interval_minutes",
-      String(minutes),
-    );
+    await window.electronAPI.setSetting("break_interval_minutes", String(minutes));
     setBreakIntervalMinutes(minutes);
+  };
+
+  const handleTogglePomodoroNotifications = async () => {
+    const newValue = !pomodoroNotificationsEnabled;
+    await window.electronAPI.setSetting("pomodoro_notifications_enabled", String(newValue));
+    setPomodoroNotificationsEnabled(newValue);
+  };
+
+  const handleToggleDailySummary = async () => {
+    const newValue = !dailySummaryEnabled;
+    await window.electronAPI.setSetting("daily_summary_enabled", String(newValue));
+    setDailySummaryEnabled(newValue);
+  };
+
+  const handleDailySummaryHourChange = async (hour: number) => {
+    await window.electronAPI.setSetting("daily_summary_hour", String(hour));
+    setDailySummaryHour(hour);
   };
 
   // Idle timeout state
@@ -526,6 +541,68 @@ export function SettingsPage() {
                 <option value={60}>1 hour</option>
                 <option value={90}>1.5 hours</option>
                 <option value={120}>2 hours</option>
+              </select>
+            </div>
+
+            <div className="flex items-center justify-between py-2 border-t border-white/[0.06]">
+              <div>
+                <p className="text-sm font-medium text-white">
+                  Pomodoro Alerts
+                </p>
+                <p className="text-xs text-grey-500">Notify when timer ends</p>
+              </div>
+              <button
+                onClick={handleTogglePomodoroNotifications}
+                className={`relative w-11 h-6 rounded-full transition-colors ${
+                  pomodoroNotificationsEnabled ? "bg-primary" : "bg-grey-700"
+                }`}
+              >
+                <div
+                  className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${
+                    pomodoroNotificationsEnabled ? "left-6" : "left-1"
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between py-2 border-t border-white/[0.06]">
+              <div>
+                <p className="text-sm font-medium text-white">
+                  Daily Summary
+                </p>
+                <p className="text-xs text-grey-500">End of day recap</p>
+              </div>
+              <button
+                onClick={handleToggleDailySummary}
+                className={`relative w-11 h-6 rounded-full transition-colors ${
+                  dailySummaryEnabled ? "bg-primary" : "bg-grey-700"
+                }`}
+              >
+                <div
+                  className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${
+                    dailySummaryEnabled ? "left-6" : "left-1"
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between py-2 border-t border-white/[0.06]">
+              <div>
+                <p className="text-sm font-medium text-white">Summary Time</p>
+                <p className="text-xs text-grey-500">When to send summary</p>
+              </div>
+              <select
+                value={dailySummaryHour}
+                onChange={(e) =>
+                  handleDailySummaryHourChange(Number(e.target.value))
+                }
+                className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white outline-none focus:border-white/20"
+              >
+                <option value={17}>5:00 PM</option>
+                <option value={18}>6:00 PM</option>
+                <option value={19}>7:00 PM</option>
+                <option value={20}>8:00 PM</option>
+                <option value={21}>9:00 PM</option>
               </select>
             </div>
           </div>

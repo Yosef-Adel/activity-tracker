@@ -449,8 +449,19 @@ ipcMain.handle("tracker:startPomodoro", (_event, type: string, duration: number,
 });
 
 ipcMain.handle("tracker:completePomodoro", (_event, pomodoroId: number) => {
+  // Get pomodoro info before completing it
+  const pomodoro = tracker?.getDatabase().getActivePomodoro();
   tracker?.getDatabase().completePomodoro(pomodoroId);
   stopPomodoroTrayTimer();
+
+  // Fire completion notification
+  if (pomodoro && notificationManager) {
+    notificationManager.onPomodoroComplete(
+      pomodoro.type,
+      pomodoro.duration,
+      pomodoro.label ?? undefined
+    );
+  }
 });
 
 ipcMain.handle("tracker:abandonPomodoro", (_event, pomodoroId: number) => {

@@ -6,15 +6,27 @@ interface DailyGoal {
   targetMs: number;
 }
 
+function formatDuration(ms: number): string {
+  const hours = Math.floor(ms / 3600000);
+  const minutes = Math.floor((ms % 3600000) / 60000);
+  if (hours > 0) {
+    return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+  }
+  return `${minutes}m`;
+}
+
 export class NotificationManager {
   private db: ActivityDatabase;
   private notifiedGoalsToday = new Set<string>();
   private lastNotifiedDate: string | null = null;
   private breakTimer: ReturnType<typeof setTimeout> | null = null;
   private lastBreakNotification = 0;
+  private dailySummaryTimer: ReturnType<typeof setTimeout> | null = null;
+  private dailySummaryShownToday = false;
 
   constructor(db: ActivityDatabase) {
     this.db = db;
+    this.scheduleDailySummary();
   }
 
   /** Called when user becomes active (activity started or changed). */
@@ -81,9 +93,30 @@ export class NotificationManager {
     }
   }
 
+  /** Fire notification when a pomodoro completes. */
+  onPomodoroComplete(type: string, durationMs: number, label?: string): void {
+    if (!this.isEnabled() || !this.isPomodoroNotificationsEnabled()) return;
+
+    const minutes = Math.round(durationMs / 60000);
+
+    let title: string;
+    let body: string;
+
+    if (type === "work") {
+      title = "Pomodoro complete!";
+      body = label ? `"${label}" finished — ${minutes} min of focused work.` : `${minutes} min of focused work complete.`;
+    } else {
+      title = "Break's over!";
+      body = `Your ${minutes} min ${type.replace(/_/g, " ")} is done. Ready to focus?`;
+    }
+
+    new Notification({ title, body }).show();
+  }
+
   /** Clean up timers. */
   shutdown(): void {
     this.clearBreakTimer();
+    this.clearDailySummaryTimer();
   }
 
   // --- Private helpers ---
@@ -130,6 +163,117 @@ export class NotificationManager {
     new Notification({
       title: "Time for a break!",
       body: `You've been working for ${minutes} minutes.`,
+    }).show();
+  }
+
+  private isPomodoroNotificationsEnabled(): boolean {
+    const val = this.db.getSetting("pomodoro_notifications_enabled");
+    return val !== "false"; // defaults to enabled
+  }
+
+  private isDailySummaryEnabled(): boolean {
+    if (!this.isEnabled()) return false;
+    const val = this.db.getSetting("daily_summary_enabled");
+    return val !== "false"; // defaults to enabled
+  }
+
+  private getDailySummaryHour(): number {
+    const val = this.db.getSetting("daily_summary_hour");
+    const hour = val ? parseInt(val, 10) : 18; // Default to 6 PM
+    return isNaN(hour) || hour < 0 || hour > 23 ? 18 : hour;
+  }
+
+  private scheduleDailySummary(): void {
+    this.clearDailySummaryTimer();
+
+    const now = new Date();
+    const summaryHour = this.getDailySummaryHour();
+
+    // Calculate next summary time
+    const nextSummary = new Date();
+    nextSummary.setHours(summaryHour, 0, 0, 0);
+
+    // If we've passed today's summary time, schedule for tomorrow
+    if (now >= nextSummary) {
+      nextSummary.setDate(nextSummary.getDate() + 1);
+      // Reset the flag for the new day
+      if (now.toDateString() !== this.lastNotifiedDate) {
+        this.dailySummaryShownToday = false;
+      }
+    }
+
+    const msUntilSummary = nextSummary.getTime() - now.getTime();
+
+    this.dailySummaryTimer = setTimeout(() => {
+      this.fireDailySummary();
+      // Schedule next day's summary
+      this.scheduleDailySummary();
+    }, msUntilSummary);
+  }
+
+  private clearDailySummaryTimer(): void {
+    if (this.dailySummaryTimer) {
+      clearTimeout(this.dailySummaryTimer);
+      this.dailySummaryTimer = null;
+    }
+  }
+
+  private fireDailySummary(): void {
+    if (!this.isDailySummaryEnabled()) return;
+
+    const today = new Date().toDateString();
+    if (this.dailySummaryShownToday && this.lastNotifiedDate === today) return;
+
+    this.dailySummaryShownToday = true;
+    this.lastNotifiedDate = today;
+
+    // Get today's data
+    const now = Date.now();
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const startTs = startOfToday.getTime();
+
+    const totalTime = this.db.getTotalTrackedTime(startTs, now);
+    const breakdown = this.db.getCategoryBreakdown(startTs, now);
+
+    if (totalTime < 60000) {
+      // Less than 1 minute tracked, skip notification
+      return;
+    }
+
+    // Find top category
+    const topCategory = breakdown.length > 0
+      ? breakdown.reduce((max, c) => c.total_duration > max.total_duration ? c : max, breakdown[0])
+      : null;
+
+    // Calculate productivity (based on category settings if available)
+    let productiveTime = 0;
+    const goalsJson = this.db.getSetting("daily_goals");
+    if (goalsJson) {
+      try {
+        const goals: DailyGoal[] = JSON.parse(goalsJson);
+        const goalCategories = new Set(goals.map(g => g.categoryName));
+        productiveTime = breakdown
+          .filter(c => goalCategories.has(c.category_name))
+          .reduce((sum, c) => sum + c.total_duration, 0);
+      } catch {
+        // Ignore
+      }
+    }
+
+    const focusPercent = totalTime > 0 ? Math.round((productiveTime / totalTime) * 100) : 0;
+
+    let body = `Total: ${formatDuration(totalTime)}`;
+    if (topCategory) {
+      body += ` • Top: ${topCategory.category_name.replace(/_/g, " ")}`;
+    }
+    if (productiveTime > 0) {
+      body += ` • Focus: ${focusPercent}%`;
+    }
+
+    new Notification({
+      title: "Daily Summary",
+      body,
     }).show();
   }
 }
