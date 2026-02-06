@@ -28,6 +28,7 @@ export interface CategoryBreakdown {
   category_id: number;
   category_name: string;
   category_color: string;
+  productivity_type: "productive" | "neutral" | "distraction";
   total_duration: number;
   session_count: number;
 }

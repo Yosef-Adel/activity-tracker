@@ -3,7 +3,7 @@ import { Provider } from 'react-redux';
 import { HashRouter, Routes, Route } from 'react-router-dom';
 import { store } from './store';
 import { Sidebar } from './sections';
-import { HomePage, ActivitiesPage, PomodoroPage, ReportsPage, SettingsPage, OnboardingPage } from './pages';
+import { HomePage, ActivitiesPage, PomodoroPage, ReportsPage, CalendarPage, SettingsPage, OnboardingPage } from './pages';
 import type { PermissionsStatus } from './types/electron';
 
 function AppContent() {
@@ -38,6 +38,7 @@ function AppContent() {
           <Route path="/activities" element={<ActivitiesPage />} />
           <Route path="/pomodoro" element={<PomodoroPage />} />
           <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </main>

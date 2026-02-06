@@ -323,12 +323,13 @@ class ActivityDatabase {
   getCategoryBreakdown(
     startTime: number,
     endTime: number
-  ): Array<{ category_id: number; category_name: string; category_color: string; total_duration: number; session_count: number }> {
+  ): Array<{ category_id: number; category_name: string; category_color: string; productivity_type: string; total_duration: number; session_count: number }> {
     const results = this.db
       .select({
         category_id: activities.categoryId,
         category_name: categories.name,
         category_color: categories.color,
+        productivity_type: categories.productivityType,
         total_duration: sql<number>`sum(${activities.duration})`,
         session_count: sql<number>`count(*)`,
       })
@@ -348,6 +349,7 @@ class ActivityDatabase {
       category_id: r.category_id ?? 0,
       category_name: r.category_name ?? "uncategorized",
       category_color: r.category_color ?? "#64748B",
+      productivity_type: r.productivity_type ?? "neutral",
       total_duration: r.total_duration,
       session_count: r.session_count,
     }));
