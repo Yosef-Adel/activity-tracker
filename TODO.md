@@ -103,10 +103,10 @@
 - [ ] Import data from CSV/JSON (backup restore)
 
 **Better Visualizations (dashboard value)**
-- [ ] Weekly heatmap (like GitHub contribution graph)
-- [ ] Line charts for trends over time
-- [ ] Pie/donut chart for category breakdown
-- [ ] Streak tracking (consecutive productive days)
+- [x] Weekly heatmap (like GitHub contribution graph) — Calendar page has daily heatmap, Reports has hourly heatmap
+- [x] Line charts for trends over time — 3-day moving average trend line on daily activity chart
+- [x] Pie/donut chart for category breakdown — Time Distribution donut chart in Reports
+- [x] Streak tracking (consecutive productive days) — Shows current streak and longest streak in Reports
 
 ### 🟡 Medium Priority — Enhanced Features
 

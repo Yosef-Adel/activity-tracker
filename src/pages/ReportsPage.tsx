@@ -20,6 +20,71 @@ interface Insights {
   topProductivityDay: string | null;
   trend: "up" | "down" | "stable";
   trendPercentage: number;
+  currentStreak: number;
+  longestStreak: number;
+}
+
+// Calculate streak of consecutive productive days (days with >= 2 hours tracked)
+function calculateStreaks(dailyTotals: DailyTotal[]): { currentStreak: number; longestStreak: number } {
+  if (dailyTotals.length === 0) return { currentStreak: 0, longestStreak: 0 };
+
+  // Sort by date descending (most recent first)
+  const sorted = [...dailyTotals].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  const MIN_PRODUCTIVE_MS = 2 * 60 * 60 * 1000; // 2 hours minimum to count as productive day
+  let currentStreak = 0;
+  let longestStreak = 0;
+  let tempStreak = 0;
+
+  // Check if today or yesterday is included (allow 1 day gap for current streak)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  let lastDate: Date | null = null;
+  let isCurrentStreakActive = true;
+
+  for (const day of sorted) {
+    const dayDate = new Date(day.date);
+    dayDate.setHours(0, 0, 0, 0);
+    const isProductive = day.total_duration >= MIN_PRODUCTIVE_MS;
+
+    if (lastDate === null) {
+      // First day - check if it's recent enough for current streak
+      const daysSinceToday = Math.floor((today.getTime() - dayDate.getTime()) / (1000 * 60 * 60 * 24));
+      isCurrentStreakActive = daysSinceToday <= 1;
+
+      if (isProductive) {
+        tempStreak = 1;
+        if (isCurrentStreakActive) currentStreak = 1;
+      }
+    } else {
+      const daysDiff = Math.floor((lastDate.getTime() - dayDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (daysDiff === 1 && isProductive) {
+        // Consecutive day
+        tempStreak++;
+        if (isCurrentStreakActive) currentStreak = tempStreak;
+      } else if (daysDiff === 1 && !isProductive) {
+        // Consecutive but not productive - streak broken
+        longestStreak = Math.max(longestStreak, tempStreak);
+        tempStreak = 0;
+        isCurrentStreakActive = false;
+      } else {
+        // Gap in days - streak broken
+        longestStreak = Math.max(longestStreak, tempStreak);
+        tempStreak = isProductive ? 1 : 0;
+        isCurrentStreakActive = false;
+      }
+    }
+
+    lastDate = dayDate;
+  }
+
+  longestStreak = Math.max(longestStreak, tempStreak);
+
+  return { currentStreak, longestStreak };
 }
 
 function calculateInsights(
@@ -85,6 +150,8 @@ function calculateInsights(
     }
   }
 
+  const { currentStreak, longestStreak } = calculateStreaks(dailyTotals);
+
   return {
     focusScore,
     mostProductiveHour,
@@ -94,6 +161,8 @@ function calculateInsights(
     topProductivityDay,
     trend,
     trendPercentage,
+    currentStreak,
+    longestStreak,
   };
 }
 
@@ -208,7 +277,7 @@ export function ReportsPage() {
       {/* Insights Summary */}
       <Card className="mb-6">
         <p className="text-[11px] uppercase tracking-wider text-grey-500 mb-4">Productivity Insights</p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 lg:gap-6">
           <div>
             <ScoreCircle
               score={insights.focusScore}
@@ -237,6 +306,21 @@ export function ReportsPage() {
             </p>
             <p className="text-xs text-grey-500">
               {insights.trend === "up" ? "More active" : insights.trend === "down" ? "Less active" : "Consistent"}
+            </p>
+          </div>
+          <div>
+            <p className="text-[11px] text-grey-500 mb-1">Streak</p>
+            <p className="text-2xl font-semibold text-white flex items-center gap-2">
+              {insights.currentStreak}
+              {insights.currentStreak >= 3 && <span className="text-lg">🔥</span>}
+              {insights.currentStreak >= 7 && <span className="text-lg">⭐</span>}
+            </p>
+            <p className="text-xs text-grey-500">
+              {insights.currentStreak === 0
+                ? "Start a streak today!"
+                : insights.currentStreak === 1
+                  ? "day • Best: " + insights.longestStreak
+                  : "days • Best: " + insights.longestStreak}
             </p>
           </div>
         </div>
@@ -307,9 +391,9 @@ export function ReportsPage() {
             )}
           </Card>
 
-          {/* Daily Activity Bar Chart */}
+          {/* Daily Activity Bar Chart with Trend Line */}
           <Card>
-            <p className="text-[11px] uppercase tracking-wider text-grey-500 mb-4">Daily Activity</p>
+            <p className="text-[11px] uppercase tracking-wider text-grey-500 mb-4">Daily Activity & Trend</p>
             {dailyChartData.dates.length === 0 || dailyChartData.durations.every(d => d === 0) ? (
               <div className="h-[280px] flex items-center justify-center">
                 <div className="text-center">
@@ -322,6 +406,7 @@ export function ReportsPage() {
                 data={[
                   {
                     type: "bar",
+                    name: "Daily Hours",
                     x: dailyChartData.dates.map(d => {
                       const date = new Date(d);
                       return `${date.getMonth() + 1}/${date.getDate()}`;
@@ -335,10 +420,28 @@ export function ReportsPage() {
                     },
                     hovertemplate: "%{x}<br>%{y:.1f} hours<extra></extra>",
                   },
+                  // 3-day moving average trend line
+                  {
+                    type: "scatter",
+                    mode: "lines",
+                    name: "3-day Avg",
+                    x: dailyChartData.dates.map(d => {
+                      const date = new Date(d);
+                      return `${date.getMonth() + 1}/${date.getDate()}`;
+                    }),
+                    y: dailyChartData.durations.map((_, i, arr) => {
+                      if (i < 2) return null;
+                      return (arr[i] + arr[i - 1] + arr[i - 2]) / 3;
+                    }),
+                    line: { color: "#f97316", width: 2, shape: "spline" },
+                    hovertemplate: "Avg: %{y:.1f}h<extra></extra>",
+                  },
                 ]}
                 layout={{
                   ...plotLayout,
                   height: 280,
+                  showlegend: true,
+                  legend: { orientation: "h", y: 1.1, font: { color: "#71717a", size: 10 } },
                   xaxis: {
                     tickangle: -45,
                     tickfont: { size: 9, color: "#71717a" },
