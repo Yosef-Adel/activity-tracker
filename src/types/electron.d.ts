@@ -275,6 +275,13 @@ export interface ElectronAPI {
   getIdleTimeout: () => Promise<number>;
   setIdleTimeout: (seconds: number) => Promise<void>;
 
+  // Tracking interval
+  getTrackingInterval: () => Promise<number>;
+  setTrackingInterval: (ms: number) => Promise<void>;
+
+  // Clear all data
+  clearAllData: () => Promise<void>;
+
   // Launch at startup
   getLoginItemSettings: () => Promise<{ openAtLogin: boolean }>;
   setLoginItemSettings: (openAtLogin: boolean) => Promise<void>;

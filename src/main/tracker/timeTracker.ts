@@ -70,6 +70,7 @@ class TimeTracker {
     this.isRunning = true;
     this.loadExcludedApps();
     this.loadIdleTimeout();
+    this.loadTrackingInterval();
 
     this.trackingInterval = setInterval(async () => {
       await this.track();
@@ -395,6 +396,33 @@ class TimeTracker {
       const parsed = parseInt(value, 10);
       if (!isNaN(parsed) && parsed > 0) {
         this.idleThresholdSeconds = parsed;
+      }
+    }
+  }
+
+  setTrackingInterval(ms: number): void {
+    this.checkIntervalMs = ms;
+    this.db.setSetting("tracking_interval_ms", String(ms));
+
+    // Restart the interval if tracking is running
+    if (this.isRunning && this.trackingInterval) {
+      clearInterval(this.trackingInterval);
+      this.trackingInterval = setInterval(async () => {
+        await this.track();
+      }, this.checkIntervalMs);
+    }
+  }
+
+  getTrackingInterval(): number {
+    return this.checkIntervalMs;
+  }
+
+  private loadTrackingInterval(): void {
+    const value = this.db.getSetting("tracking_interval_ms");
+    if (value !== null) {
+      const parsed = parseInt(value, 10);
+      if (!isNaN(parsed) && parsed >= 1000) {
+        this.checkIntervalMs = parsed;
       }
     }
   }

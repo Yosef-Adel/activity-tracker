@@ -67,106 +67,88 @@
 
 ## Infrastructure & Polish — Ongoing
 
-### Settings Page
+### ✅ Completed Recently
 
 - [x] Configure idle timeout (Settings > General, persisted in DB)
-- [ ] Configure tracking interval (currently hardcoded 5 sec)
+- [x] Configure tracking interval (Settings > General, 2-30 sec)
 - [x] Exclude system apps from tracking (hardcoded list + user-configurable exclusion list)
 - [x] User-configurable app exclusion list (DB-backed, Settings UI, hot-reload)
 - [x] Launch at system startup option
-- [ ] Reset/clear all data button
+- [x] Reset/clear all data button (Settings > Data)
+- [x] Empty states with helpful messages
+- [x] Loading skeletons on initial data fetch
+- [x] Smooth transitions when switching Day/Week views
+- [x] Handle edge case: tracking across midnight (day boundary)
+- [x] UI to add/edit/delete categories
+- [x] UI to add/edit categorization rules (apps, domains, keywords)
+- [x] Ability to recategorize existing activities
+- [x] Edit activity details (fix miscategorization)
+- [x] Delete individual activities
+- [x] Delete sessions
+- [x] Add manual time entries (meetings, offline work)
+- [x] Pomodoro completion desktop notifications
+- [x] Daily summary notification (end of day recap)
+- [x] Goal milestone alerts (category goal completion)
+- [x] Configurable notification preferences (enable/disable per type)
+- [x] Break reminders (configurable interval)
+- [x] Monthly calendar view with daily activity heatmap
+- [x] Click a day to see detailed breakdown
+- [x] Color-coded by productivity level
 
-### Data Export
+### 🔴 High Priority — Data & Core UX
 
+**Data Export (users need backup capability)**
 - [ ] Export data to CSV
 - [ ] Export data to JSON
 - [ ] Import data from CSV/JSON (backup restore)
 
-### Polish
-
-- [ ] Empty states with helpful messages (not just "No data yet")
-- [ ] Loading skeletons on initial data fetch
-- [ ] Smooth transitions when switching Day/Week views
-- [ ] Handle edge case: tracking across midnight (day boundary)
-
-### Custom Categories
-
-- [x] UI to add/edit/delete categories
-- [x] UI to add/edit categorization rules (apps, domains, keywords)
-- [x] Ability to recategorize existing activities
-
-### Better Visualizations
-
+**Better Visualizations (dashboard value)**
 - [ ] Weekly heatmap (like GitHub contribution graph)
 - [ ] Line charts for trends over time
 - [ ] Pie/donut chart for category breakdown
 - [ ] Streak tracking (consecutive productive days)
 
-### Manual Editing
+### 🟡 Medium Priority — Enhanced Features
 
-- [x] Edit activity details (fix miscategorization)
-- [x] Delete individual activities
-- [x] Delete sessions
-- [x] Add manual time entries (meetings, offline work)
-
-### Better Context Detection
-
+**Better Context Detection (developer experience)**
 - [ ] JetBrains IDE support (IntelliJ, WebStorm, PyCharm)
 - [ ] Xcode project detection
 - [ ] Better vim/neovim/tmux detection
 
-### Browser Integration
-
-- [ ] Browser extension for accurate URL/tab tracking
-- [ ] Track specific tabs/pages not just domain
-
-### Platform
-
-- [ ] Linux Wayland support (when APIs become available)
-
-### Themes & Appearance
-
-- [ ] Light/dark theme toggle
-- [ ] Custom accent colors
-- [ ] Compact mode for smaller screens
-
-### Keyboard Shortcuts
-
+**Keyboard Shortcuts (power users)**
 - [ ] Global hotkey to pause/resume
 - [ ] Global hotkey to start pomodoro
 - [ ] Navigate app with keyboard
 
-### Data Retention & Cleanup
+**AFK / Idle Improvements (accuracy)**
+- [ ] Post-idle prompt: ask user what they were doing while away
+- [ ] Let users retroactively assign idle time to a category/project
+- [ ] Smarter idle merging (short idle gaps within same app don't break sessions)
 
+**Data Retention & Cleanup (long-term users)**
 - [ ] Configurable data retention policy (e.g., keep 90 days detailed, aggregate older)
 - [ ] Automatic pruning of old data on schedule
 - [ ] Manual "clear data older than X" option
 - [ ] Database size indicator in settings
 
-### Notifications System
+### 🟢 Lower Priority — Nice to Have
 
-- [ ] Pomodoro completion desktop notifications
-- [ ] Daily summary notification (end of day recap)
-- [ ] Goal milestone alerts (e.g., "You hit your 4h coding goal!")
-- [ ] Configurable notification preferences (enable/disable per type)
+**Themes & Appearance**
+- [ ] Light/dark theme toggle
+- [ ] Custom accent colors
+- [ ] Compact mode for smaller screens
 
-### AFK / Idle Improvements
+**Browser Integration (requires extension development)**
+- [ ] Browser extension for accurate URL/tab tracking
+- [ ] Track specific tabs/pages not just domain
 
-- [ ] Post-idle prompt: ask user what they were doing while away
-- [ ] Let users retroactively assign idle time to a category/project
-- [ ] Smarter idle merging (short idle gaps within same app don't break sessions)
-
-### App/Website Blocking
-
+**App/Website Blocking (complex feature)**
 - [ ] Block distracting apps/sites during focus sessions
 - [ ] Configurable block list per category
 - [ ] Soft block (warning notification) vs hard block (redirect/close)
 
-### Calendar View
-
-- [ ] Monthly calendar view with daily activity heatmap
-- [ ] Click a day to see detailed breakdown
-- [ ] Color-coded by productivity level
+**Platform**
+- [ ] Linux Wayland support (when APIs become available)
 
 ---
 

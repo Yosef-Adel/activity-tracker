@@ -152,6 +152,10 @@ class ActivityDatabase {
   // Try to merge a newly created session with a recent session of the same category
   // Returns the merged session ID if merged, or the original sessionId if not
   private mergeWithPreviousSession(sessionId: number, categoryId: number, startTime: number): number {
+    // Only look for sessions that ended within the merge window (2 minutes)
+    // This prevents merging with sessions from hours/days ago
+    const minEndTime = startTime - SESSION_MERGE_GAP_MS;
+
     // Find the most recent session before this one with the same category
     const prevSession = this.db
       .select({
@@ -165,6 +169,7 @@ class ActivityDatabase {
         and(
           sql`${sessions.id} != ${sessionId}`,
           eq(sessions.categoryId, categoryId),
+          gte(sessions.endTime, minEndTime), // Only sessions that ended recently
         )
       )
       .orderBy(desc(sessions.endTime))
@@ -173,7 +178,7 @@ class ActivityDatabase {
 
     if (!prevSession) return sessionId;
 
-    // Check if the gap is small enough to merge
+    // Double-check the gap is small enough to merge
     const gap = startTime - prevSession.endTime;
     if (gap > SESSION_MERGE_GAP_MS || gap < 0) return sessionId;
 
@@ -1064,6 +1069,16 @@ class ActivityDatabase {
   }
 
   // Close is not needed with Drizzle, but keep for API compatibility
+  // --- Data Management ---
+
+  clearAllData(): void {
+    // Clear tracking data (activities, sessions, pomodoros)
+    // Keep configuration (categories, rules, projects, settings, excluded apps)
+    this.db.delete(activities).run();
+    this.db.delete(sessions).run();
+    this.db.delete(pomodoroSessions).run();
+  }
+
   close(): void {
     // Drizzle handles connection management
   }

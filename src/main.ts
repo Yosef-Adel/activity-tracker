@@ -523,6 +523,20 @@ ipcMain.handle("tracker:setIdleTimeout", (_event, seconds: number) => {
   tracker?.setIdleTimeout(seconds);
 });
 
+// Tracking interval
+ipcMain.handle("tracker:getTrackingInterval", () => {
+  return tracker?.getTrackingInterval() ?? 5000;
+});
+
+ipcMain.handle("tracker:setTrackingInterval", (_event, ms: number) => {
+  tracker?.setTrackingInterval(ms);
+});
+
+// Clear all data
+ipcMain.handle("tracker:clearAllData", () => {
+  tracker?.getDatabase().clearAllData();
+});
+
 // Launch at startup
 ipcMain.handle("app:getLoginItemSettings", () => {
   return app.getLoginItemSettings();

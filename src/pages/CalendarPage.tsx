@@ -199,13 +199,6 @@ export function CalendarPage() {
       endOfDay.getTime()
     );
 
-    // Debug: log to verify productivity_type is coming through
-    console.log("Categories with productivity_type:", categories.map(c => ({
-      name: c.category_name,
-      productivity_type: c.productivity_type,
-      duration: c.total_duration
-    })));
-
     setSelectedDay({
       date: dayData.date,
       totalTime: dayData.totalTime,

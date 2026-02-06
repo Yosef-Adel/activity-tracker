@@ -24,18 +24,6 @@ const COLOR_PALETTE = [
 
 const RULE_TYPES = ["app", "domain", "keyword", "domain_keyword", "file_path"];
 
-function ComingSoonOverlay() {
-  return (
-    <div className="absolute inset-0 bg-[#09090b]/80 backdrop-blur-[1px] rounded-xl flex items-center justify-center z-10">
-      <div className="text-center">
-        <span className="px-3 py-1.5 bg-primary/20 text-primary text-xs font-medium rounded-full">
-          Coming Soon
-        </span>
-      </div>
-    </div>
-  );
-}
-
 interface CategoryFormData {
   name: string;
   color: string;
@@ -282,6 +270,30 @@ export function SettingsPage() {
     setIdleTimeout(seconds);
   };
 
+  // Tracking interval state
+  const [trackingInterval, setTrackingInterval] = useState(5000);
+
+  const fetchTrackingInterval = async () => {
+    const ms = await window.electronAPI.getTrackingInterval();
+    setTrackingInterval(ms);
+  };
+
+  const handleTrackingIntervalChange = async (ms: number) => {
+    await window.electronAPI.setTrackingInterval(ms);
+    setTrackingInterval(ms);
+  };
+
+  // Clear data state
+  const [isConfirmingClear, setIsConfirmingClear] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
+
+  const handleClearAllData = async () => {
+    setIsClearing(true);
+    await window.electronAPI.clearAllData();
+    setIsClearing(false);
+    setIsConfirmingClear(false);
+  };
+
   const fetchExcludedApps = async () => {
     const apps = await window.electronAPI.getExcludedApps();
     setExcludedApps(apps);
@@ -317,6 +329,7 @@ export function SettingsPage() {
     fetchExcludedApps();
     fetchLoginItemSettings();
     fetchIdleTimeout();
+    fetchTrackingInterval();
     fetchNotificationSettings();
     window.electronAPI.updater.getVersion().then(setAppVersion);
   }, []);
@@ -453,7 +466,7 @@ export function SettingsPage() {
             <div className="flex items-center justify-between py-2 border-t border-white/[0.06]">
               <div>
                 <p className="text-sm font-medium text-white">Idle Timeout</p>
-                <p className="text-xs text-grey-500">Minutes before pausing</p>
+                <p className="text-xs text-grey-500">Pause after inactivity</p>
               </div>
               <select
                 value={idleTimeout}
@@ -469,6 +482,28 @@ export function SettingsPage() {
                 <option value={600}>10 minutes</option>
                 <option value={900}>15 minutes</option>
                 <option value={1800}>30 minutes</option>
+              </select>
+            </div>
+
+            {/* Tracking Interval — functional */}
+            <div className="flex items-center justify-between py-2 border-t border-white/[0.06]">
+              <div>
+                <p className="text-sm font-medium text-white">Check Interval</p>
+                <p className="text-xs text-grey-500">How often to track</p>
+              </div>
+              <select
+                value={trackingInterval}
+                onChange={(e) =>
+                  handleTrackingIntervalChange(Number(e.target.value))
+                }
+                className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white outline-none focus:border-white/20"
+              >
+                <option value={2000}>2 seconds</option>
+                <option value={3000}>3 seconds</option>
+                <option value={5000}>5 seconds</option>
+                <option value={10000}>10 seconds</option>
+                <option value={15000}>15 seconds</option>
+                <option value={30000}>30 seconds</option>
               </select>
             </div>
           </div>
@@ -604,6 +639,158 @@ export function SettingsPage() {
                 <option value={20}>8:00 PM</option>
                 <option value={21}>9:00 PM</option>
               </select>
+            </div>
+          </div>
+        </Card>
+
+        {/* Privacy */}
+        <Card>
+          <p className="text-[11px] uppercase tracking-wider text-grey-500 mb-4">
+            Privacy
+          </p>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <p className="text-sm font-medium text-white">
+                  Local Storage Only
+                </p>
+                <p className="text-xs text-grey-500">
+                  Data never leaves device
+                </p>
+              </div>
+              <span className="text-xs text-success bg-success/10 px-2 py-1 rounded">
+                Active
+              </span>
+            </div>
+
+            {/* Excluded Apps — expandable */}
+            <div className="border-t border-white/[0.06]">
+              <button
+                onClick={() => setIsExcludedExpanded(!isExcludedExpanded)}
+                className="w-full flex items-center justify-between py-2"
+              >
+                <div className="text-left">
+                  <p className="text-sm font-medium text-white">
+                    Excluded Apps
+                  </p>
+                  <p className="text-xs text-grey-500">Apps not tracked</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-grey-400">
+                    {excludedApps.length} app
+                    {excludedApps.length !== 1 ? "s" : ""}
+                  </span>
+                  <svg
+                    className={`w-3.5 h-3.5 text-grey-500 transition-transform ${isExcludedExpanded ? "rotate-90" : ""}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M8.25 4.5l7.5 7.5-7.5 7.5"
+                    />
+                  </svg>
+                </div>
+              </button>
+
+              {isExcludedExpanded && (
+                <div className="pb-2 space-y-1">
+                  {excludedApps.length === 0 && !isAddingExcluded && (
+                    <p className="text-xs text-grey-600 py-1">
+                      No excluded apps yet
+                    </p>
+                  )}
+
+                  {excludedApps.map((app) => (
+                    <div
+                      key={app.id}
+                      className="group/exc flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-white/[0.03]"
+                    >
+                      <span className="text-xs text-grey-300">
+                        {app.app_name}
+                      </span>
+                      <button
+                        onClick={() => handleRemoveExcludedApp(app.id)}
+                        className="opacity-0 group-hover/exc:opacity-100 p-0.5 rounded hover:bg-white/5 transition-all"
+                        title="Remove"
+                      >
+                        <svg
+                          className="w-3 h-3 text-grey-600 hover:text-error"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+
+                  {isAddingExcluded ? (
+                    <div className="flex items-center gap-2 pt-1">
+                      <input
+                        type="text"
+                        value={newExcludedName}
+                        onChange={(e) => setNewExcludedName(e.target.value)}
+                        placeholder="App name (e.g. Spotify)"
+                        className="flex-1 bg-white/5 border border-white/10 rounded-md px-2 py-1 text-xs text-white placeholder:text-grey-600 outline-none focus:border-white/20"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleAddExcludedApp();
+                          if (e.key === "Escape") {
+                            setIsAddingExcluded(false);
+                            setNewExcludedName("");
+                          }
+                        }}
+                      />
+                      <button
+                        onClick={handleAddExcludedApp}
+                        disabled={!newExcludedName.trim()}
+                        className="px-2 py-1 text-xs rounded-md bg-primary text-white hover:bg-primary-dark disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                      >
+                        Add
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsAddingExcluded(false);
+                          setNewExcludedName("");
+                        }}
+                        className="px-2 py-1 text-xs text-grey-500 hover:text-white transition-all"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setIsAddingExcluded(true)}
+                      className="flex items-center gap-1 text-[11px] text-grey-500 hover:text-grey-300 transition-all pt-1"
+                    >
+                      <svg
+                        className="w-3 h-3"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M12 4.5v15m7.5-7.5h-15"
+                        />
+                      </svg>
+                      Add app
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </Card>
@@ -1103,224 +1290,66 @@ export function SettingsPage() {
           )}
         </Card>
 
-        {/* Data Management - Coming Soon */}
-        <Card className="relative">
-          <ComingSoonOverlay />
+        {/* Data Management */}
+        <Card>
           <p className="text-[11px] uppercase tracking-wider text-grey-500 mb-4">
             Data
           </p>
           <div className="space-y-2">
-            <button className="w-full flex items-center justify-between py-3 text-left rounded-lg px-2 -mx-2">
-              <div>
-                <p className="text-sm font-medium text-white">Export Data</p>
-                <p className="text-xs text-grey-500">Download as CSV</p>
-              </div>
-              <svg
-                className="w-5 h-5 text-grey-500"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
-                />
-              </svg>
-            </button>
-
-            <button className="w-full flex items-center justify-between py-3 text-left rounded-lg px-2 -mx-2 border-t border-white/[0.06]">
-              <div>
-                <p className="text-sm font-medium text-white">Import Data</p>
-                <p className="text-xs text-grey-500">Restore from backup</p>
-              </div>
-              <svg
-                className="w-5 h-5 text-grey-500"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
-                />
-              </svg>
-            </button>
-
-            <button className="w-full flex items-center justify-between py-3 text-left rounded-lg px-2 -mx-2 border-t border-white/[0.06]">
-              <div>
-                <p className="text-sm font-medium text-error">Clear All Data</p>
-                <p className="text-xs text-grey-500">Delete everything</p>
-              </div>
-              <svg
-                className="w-5 h-5 text-grey-500"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
-                />
-              </svg>
-            </button>
-          </div>
-        </Card>
-
-        {/* Privacy */}
-        <Card>
-          <p className="text-[11px] uppercase tracking-wider text-grey-500 mb-4">
-            Privacy
-          </p>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between py-2">
-              <div>
-                <p className="text-sm font-medium text-white">
-                  Local Storage Only
-                </p>
-                <p className="text-xs text-grey-500">
-                  Data never leaves device
-                </p>
-              </div>
-              <span className="text-xs text-success bg-success/10 px-2 py-1 rounded">
-                Active
-              </span>
-            </div>
-
-            {/* Excluded Apps — expandable */}
-            <div className="border-t border-white/[0.06]">
+            {/* Clear All Data — functional with confirmation */}
+            {!isConfirmingClear ? (
               <button
-                onClick={() => setIsExcludedExpanded(!isExcludedExpanded)}
-                className="w-full flex items-center justify-between py-2"
+                onClick={() => setIsConfirmingClear(true)}
+                className="w-full flex items-center justify-between py-3 text-left rounded-lg px-2 -mx-2 hover:bg-white/[0.03] transition-colors"
               >
-                <div className="text-left">
-                  <p className="text-sm font-medium text-white">
-                    Excluded Apps
-                  </p>
-                  <p className="text-xs text-grey-500">Apps not tracked</p>
+                <div>
+                  <p className="text-sm font-medium text-error">Clear All Data</p>
+                  <p className="text-xs text-grey-500">Delete all tracked activities</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-grey-400">
-                    {excludedApps.length} app
-                    {excludedApps.length !== 1 ? "s" : ""}
-                  </span>
-                  <svg
-                    className={`w-3.5 h-3.5 text-grey-500 transition-transform ${isExcludedExpanded ? "rotate-90" : ""}`}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M8.25 4.5l7.5 7.5-7.5 7.5"
-                    />
-                  </svg>
-                </div>
+                <svg
+                  className="w-5 h-5 text-grey-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                  />
+                </svg>
               </button>
-
-              {isExcludedExpanded && (
-                <div className="pb-2 space-y-1">
-                  {excludedApps.length === 0 && !isAddingExcluded && (
-                    <p className="text-xs text-grey-600 py-1">
-                      No excluded apps yet
-                    </p>
-                  )}
-
-                  {excludedApps.map((app) => (
-                    <div
-                      key={app.id}
-                      className="group/exc flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-white/[0.03]"
-                    >
-                      <span className="text-xs text-grey-300">
-                        {app.app_name}
-                      </span>
-                      <button
-                        onClick={() => handleRemoveExcludedApp(app.id)}
-                        className="opacity-0 group-hover/exc:opacity-100 p-0.5 rounded hover:bg-white/5 transition-all"
-                        title="Remove"
-                      >
-                        <svg
-                          className="w-3 h-3 text-grey-600 hover:text-error"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
-
-                  {isAddingExcluded ? (
-                    <div className="flex items-center gap-2 pt-1">
-                      <input
-                        type="text"
-                        value={newExcludedName}
-                        onChange={(e) => setNewExcludedName(e.target.value)}
-                        placeholder="App name (e.g. Spotify)"
-                        className="flex-1 bg-white/5 border border-white/10 rounded-md px-2 py-1 text-xs text-white placeholder:text-grey-600 outline-none focus:border-white/20"
-                        autoFocus
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") handleAddExcludedApp();
-                          if (e.key === "Escape") {
-                            setIsAddingExcluded(false);
-                            setNewExcludedName("");
-                          }
-                        }}
-                      />
-                      <button
-                        onClick={handleAddExcludedApp}
-                        disabled={!newExcludedName.trim()}
-                        className="px-2 py-1 text-xs rounded-md bg-primary text-white hover:bg-primary-dark disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                      >
-                        Add
-                      </button>
-                      <button
-                        onClick={() => {
-                          setIsAddingExcluded(false);
-                          setNewExcludedName("");
-                        }}
-                        className="px-2 py-1 text-xs text-grey-500 hover:text-white transition-all"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setIsAddingExcluded(true)}
-                      className="flex items-center gap-1 text-[11px] text-grey-500 hover:text-grey-300 transition-all pt-1"
-                    >
-                      <svg
-                        className="w-3 h-3"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M12 4.5v15m7.5-7.5h-15"
-                        />
-                      </svg>
-                      Add app
-                    </button>
-                  )}
+            ) : (
+              <div className="px-3 py-3 bg-error/5 border border-error/20 rounded-lg">
+                <p className="text-xs text-grey-300 mb-3">
+                  This will permanently delete all your tracked activities, sessions, and pomodoro records. Your categories, projects, and settings will be preserved.
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsConfirmingClear(false)}
+                    disabled={isClearing}
+                    className="px-3 py-1.5 text-xs text-grey-400 hover:text-white rounded-md hover:bg-white/5 transition-all disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleClearAllData}
+                    disabled={isClearing}
+                    className="px-3 py-1.5 text-xs rounded-md bg-error text-white hover:bg-error/80 transition-all disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {isClearing ? (
+                      <>
+                        <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />
+                        Clearing...
+                      </>
+                    ) : (
+                      "Delete All Data"
+                    )}
+                  </button>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </Card>
 
@@ -1350,11 +1379,6 @@ export function SettingsPage() {
               >
                 Send Feedback →
               </button>
-            </div>
-            <div className="pt-3 border-t border-white/[0.06]">
-              <p className="text-xs text-grey-500">
-                Settings persistence coming in future updates.
-              </p>
             </div>
           </div>
         </Card>
